@@ -18,8 +18,8 @@ import torch.nn as nn
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
 LEARNING_RATE_DEFAULT = 1e-3
-MAX_STEPS_DEFAULT = 1400
-BATCH_SIZE_DEFAULT = 200
+MAX_STEPS_DEFAULT = 1400 #1400
+BATCH_SIZE_DEFAULT = 200 #200
 EVAL_FREQ_DEFAULT = 100
 NEG_SLOPE_DEFAULT = 0.02
 
@@ -79,15 +79,56 @@ def train():
     else:
         dnn_hidden_units = []
     
-    neg_slope = FLAGS.neg_slope
+    # neg_slope = FLAGS.neg_slope
     
     ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    cifar10 = cifar10_utils.get_cifar10(data_dir=DATA_DIR_DEFAULT, one_hot=False, validation_size=0)
+    train = cifar10["train"]
+    valid = cifar10["validation"]
+    test = cifar10["test"]
+
+    model = MLP(3*32*32, dnn_hidden_units, 10)
+    loss_module = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate)
+    
+    model.train()
+    step = 0 
+    while step < FLAGS.max_steps:
+        images, labels = train.next_batch(FLAGS.batch_size)
+
+        # Reshape and convert to torch Tensor
+        images = torch.from_numpy(images.reshape(images.shape[0], -1))
+        labels = torch.from_numpy(labels)
+        # print(images.shape)
+        # print(labels.shape)
+
+        preds = model(images)
+
+        loss = loss_module(preds, labels)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if step % FLAGS.eval_freq == 0:
+
+            images, labels = test.next_batch(10000)
+
+            # Reshape and convert to torch Tensor
+            images = torch.from_numpy(images.reshape(images.shape[0], -1))
+            labels = torch.from_numpy(labels)
+            # print(images.shape)
+            # print(labels.shape)
+
+            preds = model(images)
+
+            class_preds = torch.argmax(preds, dim=1)
+            correct_preds = (class_preds == labels).sum().numpy()
+            accuracy_batch = correct_preds / labels.shape[0]
+            print(f"STEP {step} - {accuracy_batch}")
+            # break
+
+        step += 1
+        # break
 
 
 def print_flags():

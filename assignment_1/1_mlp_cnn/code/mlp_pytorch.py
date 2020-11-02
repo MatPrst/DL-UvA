@@ -33,14 +33,20 @@ class MLP(nn.Module):
         TODO:
         Implement initialization of the network.
         """
-        
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        super(MLP, self).__init__()
+
+        layers = []
+        n_in = n_inputs
+        for h_layer in n_hidden:
+          n_out = h_layer
+          print(n_in, n_out)
+          layers.append(nn.Linear(n_in, n_out))
+          n_in = n_out
+        self.layers = nn.ModuleList(layers)
+        self.h = nn.ELU()
+        self.out_layer = nn.Linear(n_in, n_classes)
+        print(self)
+
     
     def forward(self, x):
         """
@@ -55,13 +61,10 @@ class MLP(nn.Module):
         TODO:
         Implement forward pass of the network.
         """
+
+        out = x.clone().detach()
+        for layer in self.layers:
+          out = self.h(layer(out))
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
-        
+        out = self.out_layer(out)
         return out
