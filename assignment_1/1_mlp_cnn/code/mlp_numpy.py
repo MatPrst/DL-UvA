@@ -37,7 +37,7 @@ class MLP(object):
         ########################
         # PUT YOUR CODE HERE  #
         #######################
-        raise NotImplementedError
+        self.linear = LinearModule(n_inputs, n_classes)
         ########################
         # END OF YOUR CODE    #
         #######################
@@ -59,7 +59,7 @@ class MLP(object):
         ########################
         # PUT YOUR CODE HERE  #
         #######################
-        raise NotImplementedError
+        out = self.linear.forward(x)
         ########################
         # END OF YOUR CODE    #
         #######################

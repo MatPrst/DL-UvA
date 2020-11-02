@@ -29,7 +29,15 @@ class LinearModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        self.params = {}
+        self.params["weight"] = np.random.normal(loc=0, scale=0.0001, size=(out_features, in_features))
+        self.params["bias"] = np.zeros((1, out_features))
+
+        self.grads = {}
+        self.grads["weight"] = np.zeros((out_features, in_features))
+        self.grads["bias"] = np.zeros((1, out_features))
+
+        self.x = None
         
         ########################
         # END OF YOUR CODE    #
@@ -54,8 +62,15 @@ class LinearModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
-        
+        # store input of to use in backward
+        self.x = x.copy()
+        batch_size = x.shape[0]
+        print(f"{batch_size=}")
+        B = np.tile(self.params["bias"], (batch_size, 1))
+        print(f"B.shape={B.shape}")
+        out = x @ self.params["weight"].T + B
+        print(f"out.shape={out.shape}")
+
         ########################
         # END OF YOUR CODE    #
         #######################
@@ -80,8 +95,10 @@ class LinearModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
-        
+        print(f"dout.shape={dout.shape}")
+        self.grads["weight"] = dout.T @ self.x
+        self.grads["bias"] = np.ones(dout.shape[1]) @ dout
+        dx = dout @ self.params["weight"]
         ########################
         # END OF YOUR CODE    #
         #######################
@@ -168,7 +185,9 @@ class CrossEntropyModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        Li = - np.sum(y*np.log(x), axis=1)
+        print(f"Li.shape={Li.shape}")
+        out = np.mean(Li)
         
         ########################
         # END OF YOUR CODE    #
@@ -193,7 +212,7 @@ class CrossEntropyModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        # dx = -
         
         ########################
         # END OF YOUR CODE    #

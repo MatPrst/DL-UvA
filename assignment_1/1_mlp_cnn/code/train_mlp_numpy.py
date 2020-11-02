@@ -17,7 +17,7 @@ import cifar10_utils
 DNN_HIDDEN_UNITS_DEFAULT = '100'
 LEARNING_RATE_DEFAULT = 1e-3
 MAX_STEPS_DEFAULT = 1400
-BATCH_SIZE_DEFAULT = 200
+BATCH_SIZE_DEFAULT = 1
 EVAL_FREQ_DEFAULT = 100
 
 # Directory in which cifar data is saved
@@ -78,7 +78,15 @@ def train():
     ########################
     # PUT YOUR CODE HERE  #
     #######################
-    raise NotImplementedError
+    print("START TRAINING")
+    cifar10 = cifar10_utils.get_cifar10(data_dir=DATA_DIR_DEFAULT, one_hot=True, validation_size=0)
+    images, labels = cifar10["train"].next_batch(2)
+    f_images = images.reshape(images.shape[0], -1)
+    f_labels = labels.reshape(labels.shape[0], -1)
+    net = MLP(f_images.shape[-1], 0, 10)
+    print(net.forward(f_images))
+    net.backward(np.array([1, 1, 1]))
+    print("END TRAINING")
     ########################
     # END OF YOUR CODE    #
     #######################
