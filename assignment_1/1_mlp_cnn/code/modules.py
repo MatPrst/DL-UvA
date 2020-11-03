@@ -61,16 +61,10 @@ class LinearModule(object):
         ########################
         # PUT YOUR CODE HERE  #
         #######################
-
-        # store input of to use in backward
         self.x = x.copy()
         batch_size = x.shape[0]
-        print(f"{batch_size=}")
         B = np.tile(self.params["bias"], (batch_size, 1))
-        print(f"B.shape={B.shape}")
         out = x @ self.params["weight"].T + B
-        print(f"out.shape={out.shape}")
-
         ########################
         # END OF YOUR CODE    #
         #######################
@@ -94,10 +88,8 @@ class LinearModule(object):
         ########################
         # PUT YOUR CODE HERE  #
         #######################
-
-        print(f"dout.shape={dout.shape}")
         self.grads["weight"] = dout.T @ self.x
-        self.grads["bias"] = np.ones(dout.shape[1]) @ dout
+        self.grads["bias"] = np.ones(dout.shape[0]) @ dout
         dx = dout @ self.params["weight"]
         ########################
         # END OF YOUR CODE    #
@@ -225,7 +217,9 @@ class ELUModule(object):
     """
     ELU activation module.
     """
-    
+    def __init__(self):
+        self.x = None
+
     def forward(self, x):
         """
         Forward pass.
@@ -244,7 +238,8 @@ class ELUModule(object):
         # PUT YOUR CODE HERE  #
         #######################
         
-        raise NotImplementedError
+        self.x = x.copy()
+        out = np.where(x >= 0, x, np.exp(x) - 1)
         
         ########################
         # END OF YOUR CODE    #
@@ -268,7 +263,8 @@ class ELUModule(object):
         # PUT YOUR CODE HERE  #
         #######################
 
-        raise NotImplementedError
+        d = np.where(self.x >= 0, 1, np.exp(self.x))
+        dx = np.multiply(dout, d)
 
         ########################
         # END OF YOUR CODE    #
