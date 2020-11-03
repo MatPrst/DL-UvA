@@ -40,8 +40,16 @@ class MLP(nn.Module):
         for h_layer in n_hidden:
           n_out = h_layer
           print(n_in, n_out)
-          layers.append(nn.Linear(n_in, n_out))
+          layer = nn.Linear(n_in, n_out)
+
+          # Initialize weights and bias
+          nn.init.normal_(layer.weight, mean=0, std=0.0001)
+          nn.init.zeros_(layer.bias)
+          
+          layers.append(layer)
           n_in = n_out
+        
+        
         self.layers = nn.ModuleList(layers)
         self.h = nn.ELU()
         self.out_layer = nn.Linear(n_in, n_classes)
