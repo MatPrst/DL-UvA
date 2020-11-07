@@ -17,7 +17,7 @@ import cifar10_utils
 DNN_HIDDEN_UNITS_DEFAULT = '100'
 LEARNING_RATE_DEFAULT = 1e-3
 MAX_STEPS_DEFAULT = 1400
-BATCH_SIZE_DEFAULT = 1
+BATCH_SIZE_DEFAULT = 200
 EVAL_FREQ_DEFAULT = 100
 
 # Directory in which cifar data is saved
@@ -44,13 +44,10 @@ def accuracy(predictions, targets):
     Implement accuracy computation.
     """
 
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    class_preds = np.argmax(predictions, axis=1)
+    class_targets = np.argmax(targets, axis=1)
+    correct_preds = (class_preds == class_targets).sum()
+    accuracy = correct_preds / predictions.shape[0]
 
     return accuracy
 
@@ -75,21 +72,42 @@ def train():
     else:
         dnn_hidden_units = []
 
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
+    FLAGS.eval_freq = max(FLAGS.eval_freq, 1) # Make sure eval frequency is at least 1
+
     print("START TRAINING")
     cifar10 = cifar10_utils.get_cifar10(data_dir=DATA_DIR_DEFAULT, one_hot=True, validation_size=0)
-    images, labels = cifar10["train"].next_batch(2)
-    f_images = images.reshape(images.shape[0], -1)
-    f_labels = labels.reshape(labels.shape[0], -1)
-    net = MLP(f_images.shape[-1], 0, 10)
-    print(net.forward(f_images))
-    net.backward(np.array([1, 1, 1]))
+    train = cifar10["train"]
+    valid = cifar10["validation"]
+    test = cifar10["test"]
+
+    model = MLP(3*32*32, dnn_hidden_units, 10)
+    loss_module = CrossEntropyModule()
+
+    step = 0 
+    while step < FLAGS.max_steps:
+        if step % FLAGS.eval_freq == 0: # Compute accuracy on the test dataset
+            images, labels = test.next_batch(10000)
+            images = images.reshape(images.shape[0], -1)
+            preds = model.forward(images)
+            print(f"STEP {step} - {accuracy(preds, labels)}")
+        
+        images, labels = train.next_batch(FLAGS.batch_size)
+        images = images.reshape(images.shape[0], -1)
+
+        preds = model.forward(images)
+        dloss = loss_module.backward(preds, labels)
+
+        model.backward(dloss)
+
+        # Update parameters
+        for i, layer in enumerate(model.layers):
+            if i % 2 == 0:
+                layer.params["weight"] -= FLAGS.learning_rate*layer.grads["weight"]
+                layer.params["bias"] -= FLAGS.learning_rate*layer.grads["bias"]
+
+        step += 1
+
     print("END TRAINING")
-    ########################
-    # END OF YOUR CODE    #
-    #######################
 
 
 def print_flags():

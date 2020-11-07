@@ -224,6 +224,6 @@ class ELUModule(object):
         """
 
         d = np.where(self.x >= 0, 1, np.exp(self.x))
-        dx = np.multiply(dout, d)
+        dx = dout * d
 
         return dx
