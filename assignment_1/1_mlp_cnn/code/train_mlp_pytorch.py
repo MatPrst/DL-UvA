@@ -11,6 +11,7 @@ import numpy as np
 import os
 from mlp_pytorch import MLP
 import cifar10_utils
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -47,15 +48,50 @@ def accuracy(predictions, targets):
     Implement accuracy computation.
     """
     
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    class_preds = torch.argmax(predictions, dim=1)
+    correct_preds = (class_preds == targets).sum()
+    accuracy = correct_preds.item() / predictions.shape[0]
     
     return accuracy
+
+def eval(model, dataset, batch_size, device):
+    total_images = 0
+    total_accuracy = 0
+    num_batches = 0
+    while total_images < dataset.num_examples:
+        images, labels = dataset.next_batch(batch_size)
+
+        # Reshape and convert to torch Tensor
+        images = torch.from_numpy(images.reshape(images.shape[0], -1)).to(device)
+        labels = torch.from_numpy(labels).to(device)
+
+        preds = model.forward(images)
+        batch_accuracy = accuracy(preds, labels)
+        
+        total_accuracy += batch_accuracy
+        total_images += batch_size
+        num_batches += 1
+    
+    return total_accuracy/num_batches
+
+def plot_loss_accuracy(losses, accuracies, save=False):
+    fig, ax1 = plt.subplots()
+
+    ax1.set_xlabel('Training iteration')
+    ax1.set_ylabel('Loss')
+    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", linewidth=1)
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Accuracy')
+    l2 = ax2.plot(np.linspace(0, len(losses), len(accuracies)), accuracies, label="test accuracy", color="r")
+
+    plots = l1+l2
+    labels = [plot.get_label() for plot in plots]
+    ax2.legend(plots, labels)
+
+    if save:
+        plt.savefig(os.path.join("images", "pytorch_loss_accuracy.png"))
+    plt.show()
 
 
 def train():
@@ -82,47 +118,48 @@ def train():
     # neg_slope = FLAGS.neg_slope
     
     ########################
+    device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
+    print("Using device", device)
+
     cifar10 = cifar10_utils.get_cifar10(data_dir=DATA_DIR_DEFAULT, one_hot=False, validation_size=0)
     train = cifar10["train"]
     valid = cifar10["validation"]
     test = cifar10["test"]
 
-    model = MLP(3*32*32, dnn_hidden_units, 10)
+    losses = []
+    test_accuracies = []
+
+    model = MLP(3*32*32, dnn_hidden_units, 10).to(device)
     loss_module = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate)
     
     model.train()
     step = 0 
     while step < FLAGS.max_steps:
-        if step % FLAGS.eval_freq == 0:
-
-            images, labels = test.next_batch(10000)
-
-            # Reshape and convert to torch Tensor
-            images = torch.from_numpy(images.reshape(images.shape[0], -1))
-            labels = torch.from_numpy(labels)
-
-            preds = model(images)
-
-            class_preds = torch.argmax(preds, dim=1)
-            correct_preds = (class_preds == labels).sum().numpy()
-            accuracy_batch = correct_preds / labels.shape[0]
-            print(f"STEP {step} - {accuracy_batch}")
+        if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
+            test_accuracy = eval(model, test, FLAGS.batch_size, device)
+            test_accuracies.append(test_accuracy)
+            # print(f"STEP {step} - {test_accuracy}")
         
         images, labels = train.next_batch(FLAGS.batch_size)
 
         # Reshape and convert to torch Tensor
-        images = torch.from_numpy(images.reshape(images.shape[0], -1))
-        labels = torch.from_numpy(labels)
+        images = torch.from_numpy(images.reshape(images.shape[0], -1)).to(device)
+        labels = torch.from_numpy(labels).to(device)
 
         preds = model(images)
 
         loss = loss_module(preds, labels)
+        losses.append(loss.item())
+        
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         step += 1
+    
+    plot_loss_accuracy(losses, test_accuracies, save=False)
+    
 
 
 def print_flags():
