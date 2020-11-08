@@ -6,6 +6,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import torch.nn as nn
 
 class ConvNet(nn.Module):
     """
@@ -26,14 +27,32 @@ class ConvNet(nn.Module):
         TODO:
         Implement initialization of the network.
         """
-        
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        super().__init__()
+
+        self.net = nn.Sequential(
+            nn.Conv2d(n_channels, 64, (3,3), 1, 1),
+            PreAct(64),
+            nn.Conv2d(64, 128, (1,1), 1, 0),
+            nn.MaxPool2d((3,3), 2, 1),
+            PreAct(128),
+            PreAct(128),
+            nn.Conv2d(128, 256, (1,1), 1, 0),
+            nn.MaxPool2d((3,3), 2, 1),
+            PreAct(256),
+            PreAct(256),
+            nn.Conv2d(256, 512, (1,1), 1, 0),
+            nn.MaxPool2d((3,3), 2, 1),
+            PreAct(512),
+            PreAct(512),
+            nn.MaxPool2d((3,3), 2, 1),
+            PreAct(512),
+            PreAct(512),
+            nn.MaxPool2d((3,3), 2, 1),
+            nn.Flatten(),
+            nn.Linear(512, 10)
+        )
+
+        print(self)
     
     def forward(self, x):
         """
@@ -49,12 +68,21 @@ class ConvNet(nn.Module):
         Implement forward pass of the network.
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
-        
+        out = self.net(x)
+
         return out
+
+class PreAct(nn.Module):
+    def __init__(self, channels, k_size=(3,3), stride=1, padding=1):
+        super().__init__()
+
+        self.net = nn.Sequential(
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, k_size, stride, padding)
+        )
+    
+    def forward(self, x):
+      z = self.net(x)
+      return z + x
+

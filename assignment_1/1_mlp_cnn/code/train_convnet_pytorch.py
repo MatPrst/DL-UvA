@@ -46,16 +46,33 @@ def accuracy(predictions, targets):
     Implement accuracy computation.
     """
     
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    class_preds = torch.argmax(predictions, dim=1)
+    correct_preds = (class_preds == targets).sum()
+    accuracy = correct_preds.item() / predictions.shape[0]
     
     return accuracy
 
+def eval(model, dataset, batch_size, device):
+    model.eval()
+
+    total_images = 0
+    total_accuracy = 0
+    num_batches = 0
+    while total_images < dataset.num_examples:
+        images, labels = dataset.next_batch(batch_size)
+
+        # Reshape and convert to torch Tensor
+        images = torch.from_numpy(images).to(device)
+        labels = torch.from_numpy(labels).to(device)
+
+        preds = model.forward(images)
+        batch_accuracy = accuracy(preds, labels)
+        
+        total_accuracy += batch_accuracy
+        total_images += batch_size
+        num_batches += 1
+    
+    return total_accuracy/num_batches
 
 def train():
     """
@@ -71,12 +88,62 @@ def train():
     torch.manual_seed(42)
     
     ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
+    print("Using device", device)
+
+    cifar10 = cifar10_utils.get_cifar10(data_dir=FLAGS.data_dir, one_hot=False, validation_size=0)
+    train = cifar10["train"]
+    valid = cifar10["validation"]
+    test = cifar10["test"]
+
+    losses = []
+    test_accuracies = []
+
+    model = ConvNet(3, 10).to(device)
+    loss_module = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
+
+    # # for name, param in model.named_parameters():
+    # #     print(name)
+    
+    # for name, param in model.named_parameters():
+    #     if name.endswith(".bias"):
+    #         # param.data.fill_(0)
+    #         nn.init.zeros_(param.data)
+    #     else:
+    #         # bound = np.sqrt(6)/np.sqrt(param.shape[0]+param.shape[1])
+    #         # nn.init.uniform_(param.data, -bound, bound)
+    #         # nn.init.xavier_uniform_(param.data)
+    #         # Initialize weights and bias
+    #         nn.init.normal_(param.data, mean=0, std=0.0001)
+    #     # nn.init.zeros_(layer.bias)
+    
+    model.train()
+    step = 0 
+    while step < FLAGS.max_steps:
+        if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
+            test_accuracy = eval(model, test, FLAGS.batch_size, device)
+            test_accuracies.append(test_accuracy)
+            # train_accuracy = eval(model, train, FLAGS.batch_size, device)
+            # train_accuracies.append(train_accuracy)
+            print(f"STEP {step} - {test_accuracy}")
+        
+        images, labels = train.next_batch(FLAGS.batch_size)
+
+        # Reshape and convert to torch Tensor
+        images = torch.from_numpy(images).to(device)
+        labels = torch.from_numpy(labels).to(device)
+
+        preds = model(images)
+
+        loss = loss_module(preds, labels)
+        losses.append(loss.item())
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        step += 1
 
 
 def print_flags():
