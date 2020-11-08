@@ -12,6 +12,7 @@ import os
 from mlp_numpy import MLP
 from modules import CrossEntropyModule
 import cifar10_utils
+import matplotlib.pyplot as plt
 
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
@@ -51,6 +52,22 @@ def accuracy(predictions, targets):
 
     return accuracy
 
+def eval(model, dataset, batch_size):
+    total_images = 0
+    total_accuracy = 0
+    num_batches = 0
+    while total_images < dataset.num_examples:
+        images, labels = dataset.next_batch(batch_size)
+        images = images.reshape(images.shape[0], -1)
+        preds = model.forward(images)
+        
+        batch_accuracy = accuracy(preds, labels)
+        
+        total_accuracy += batch_accuracy
+        total_images += batch_size
+        num_batches += 1
+    # print("EVAL -", total_accuracy/num_batches)
+    return total_accuracy/num_batches
 
 def train():
     """
@@ -80,21 +97,25 @@ def train():
     valid = cifar10["validation"]
     test = cifar10["test"]
 
+    losses = []
+    test_accuracies = []
+
     model = MLP(3*32*32, dnn_hidden_units, 10)
     loss_module = CrossEntropyModule()
 
     step = 0 
     while step < FLAGS.max_steps:
-        if step % FLAGS.eval_freq == 0: # Compute accuracy on the test dataset
-            images, labels = test.next_batch(10000)
-            images = images.reshape(images.shape[0], -1)
-            preds = model.forward(images)
-            print(f"STEP {step} - {accuracy(preds, labels)}")
+        if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
+            test_accuracy = eval(model, test, FLAGS.batch_size)
+            test_accuracies.append(test_accuracy)
+            print(f"STEP {step} - {test_accuracy}")
         
         images, labels = train.next_batch(FLAGS.batch_size)
         images = images.reshape(images.shape[0], -1)
 
         preds = model.forward(images)
+
+        loss = loss_module.forward(preds, labels)
         dloss = loss_module.backward(preds, labels)
 
         model.backward(dloss)
@@ -106,8 +127,26 @@ def train():
                 layer.params["bias"] -= FLAGS.learning_rate*layer.grads["bias"]
 
         step += 1
+        losses.append(loss)
 
     print("END TRAINING")
+
+    fig, ax1 = plt.subplots()
+
+    ax1.set_xlabel('Training iteration')
+    ax1.set_ylabel('Loss')
+    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", linewidth=1)
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Accuracy')
+    l2 = ax2.plot(np.linspace(0, len(losses), len(test_accuracies)), test_accuracies, label="test accuracy", color="r")
+
+    plots = l1+l2
+    labels = [plot.get_label() for plot in plots]
+    ax2.legend(plots, labels)
+
+    plt.savefig(os.path.join("images", "numpy_loss_accuracy.png"))
+
 
 
 def print_flags():
