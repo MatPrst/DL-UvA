@@ -48,6 +48,8 @@ class ConvNet(nn.Module):
             PreAct(512),
             PreAct(512),
             nn.MaxPool2d((3,3), 2, 1),
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
             nn.Flatten(),
             nn.Linear(512, 10)
         )
