@@ -86,5 +86,5 @@ class PreAct(nn.Module):
     
     def forward(self, x):
       z = self.net(x)
-      return z + x
+      return x + z
 

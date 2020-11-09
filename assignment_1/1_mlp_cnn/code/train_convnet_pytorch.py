@@ -91,6 +91,16 @@ def train():
     device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
     print("Using device", device)
 
+    def set_seed(seed):
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available(): # GPU operation have separate seed
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+    set_seed(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
     cifar10 = cifar10_utils.get_cifar10(data_dir=FLAGS.data_dir, one_hot=False, validation_size=0)
     train = cifar10["train"]
     valid = cifar10["validation"]
@@ -103,14 +113,14 @@ def train():
     loss_module = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
     
-    model.train()
     step = 0 
     while step < FLAGS.max_steps:
         if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
-            test_accuracy = eval(model, test, FLAGS.batch_size, device)
+            test_accuracy = eval(model, test, 100, device)
             test_accuracies.append(test_accuracy)
             print(f"STEP {step} - {test_accuracy}")
         
+        model.train()
         images, labels = train.next_batch(FLAGS.batch_size)
 
         # Reshape and convert to torch Tensor
@@ -128,7 +138,7 @@ def train():
 
         step += 1
     
-    test_accuracy = eval(model, test, FLAGS.batch_size, device)
+    test_accuracy = eval(model, test, 100, device)
     test_accuracies.append(test_accuracy)
     print(f"STEP {step} - {test_accuracy}")
 
