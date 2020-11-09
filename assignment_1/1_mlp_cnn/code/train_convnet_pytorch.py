@@ -102,21 +102,6 @@ def train():
     model = ConvNet(3, 10).to(device)
     loss_module = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
-
-    # # for name, param in model.named_parameters():
-    # #     print(name)
-    
-    # for name, param in model.named_parameters():
-    #     if name.endswith(".bias"):
-    #         # param.data.fill_(0)
-    #         nn.init.zeros_(param.data)
-    #     else:
-    #         # bound = np.sqrt(6)/np.sqrt(param.shape[0]+param.shape[1])
-    #         # nn.init.uniform_(param.data, -bound, bound)
-    #         # nn.init.xavier_uniform_(param.data)
-    #         # Initialize weights and bias
-    #         nn.init.normal_(param.data, mean=0, std=0.0001)
-    #     # nn.init.zeros_(layer.bias)
     
     model.train()
     step = 0 
@@ -124,8 +109,6 @@ def train():
         if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
             test_accuracy = eval(model, test, FLAGS.batch_size, device)
             test_accuracies.append(test_accuracy)
-            # train_accuracy = eval(model, train, FLAGS.batch_size, device)
-            # train_accuracies.append(train_accuracy)
             print(f"STEP {step} - {test_accuracy}")
         
         images, labels = train.next_batch(FLAGS.batch_size)
@@ -144,6 +127,10 @@ def train():
         optimizer.step()
 
         step += 1
+    
+    test_accuracy = eval(model, test, FLAGS.batch_size, device)
+    test_accuracies.append(test_accuracy)
+    print(f"STEP {step} - {test_accuracy}")
 
 
 def print_flags():
