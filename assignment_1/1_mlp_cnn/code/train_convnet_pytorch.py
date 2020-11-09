@@ -11,6 +11,7 @@ import numpy as np
 import os
 from convnet_pytorch import ConvNet
 import cifar10_utils
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -105,7 +106,7 @@ def train():
     # Set the random seeds for reproducibility
     np.random.seed(42)
     torch.manual_seed(42)
-    
+
     ########################
     device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
     print("Using device", device)
@@ -160,6 +161,8 @@ def train():
     test_accuracy = eval(model, test, 100, device)
     test_accuracies.append(test_accuracy)
     print(f"STEP {step} - {test_accuracy}")
+    
+    plot_loss_accuracy(losses, test_accuracies, True)
 
 
 def print_flags():
