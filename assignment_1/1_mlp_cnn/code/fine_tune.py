@@ -91,7 +91,7 @@ def plot_loss_accuracy(losses, accuracies):
     ax2 = ax1.twinx()
     ax2.set_ylabel('Accuracy')
     l3 = ax2.plot(np.linspace(0, len(loss), len(acc)), acc, label="test accuracy", color="b")
-    l4 = ax2.plot(np.linspace(0, len(loss), len(acc_pretrained)), acc_pretrained, label="test accuracy", color="r")
+    l4 = ax2.plot(np.linspace(0, len(loss), len(acc_pretrained)), acc_pretrained, label="test accuracy pretrained", color="r")
 
     plots = l1+l2+l3+l4
     labels = [plot.get_label() for plot in plots]
@@ -143,7 +143,7 @@ def train(pretrained=False):
     test_accuracies = []
 
     # model = ConvNet(3, 10).to(device)
-    model = get_model(pretrained=False, device=device)
+    model = get_model(pretrained=pretrained, device=device)
     print(model)
 
     loss_module = nn.CrossEntropyLoss()
