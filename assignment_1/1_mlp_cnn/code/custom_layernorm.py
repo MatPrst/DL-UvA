@@ -147,7 +147,7 @@ class CustomLayerNormManualFunction(torch.autograd.Function):
 
           M = grad_output.shape[1]
           
-          grad_input = cnst * (grad_output * gamma - 1/M * torch.sum(grad_output * gamma, dim=1).reshape(-1, 1) - input_norm/M * torch.sum(grad_output * gamma * input_norm, dim=1).reshape(-1, 1))
+          grad_input = cnst * (grad_output * gamma - 1/M * torch.sum(grad_output * gamma, dim=1, keepdim=True) - input_norm/M * torch.sum(grad_output * gamma * input_norm, dim=1, keepdim=True))
 
         if ctx.needs_input_grad[1]: # Gradient gamma
           mean = torch.mean(input, dim=1, keepdim=True)
