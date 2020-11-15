@@ -104,6 +104,9 @@ def plot_loss_accuracy(losses, test_accuracies, train_accuracies):
     plt.show()
 
 def get_model(pretrained, device):
+    '''
+    Return a Resnet18 model (pretrained or not) and replace the output layer so that it fits CIFAR10 and its 10 classes.
+    '''
     model = models.resnet18(pretrained=pretrained)
     model.fc = nn.Linear(512, 10)
     model.to(device)
@@ -145,7 +148,6 @@ def train(pretrained=False):
     test_accuracies = []
     train_accuracies = []
 
-    # model = ConvNet(3, 10).to(device)
     model = get_model(pretrained=pretrained, device=device)
     print(model)
 

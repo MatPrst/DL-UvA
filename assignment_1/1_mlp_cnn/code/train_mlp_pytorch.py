@@ -76,26 +76,6 @@ def eval(model, dataset, batch_size, device):
     
     return total_accuracy/num_batches
 
-def plot_loss_accuracy(losses, accuracies, save=False):
-    fig, ax1 = plt.subplots()
-
-    ax1.set_xlabel('Training iteration')
-    ax1.set_ylabel('Loss')
-    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", linewidth=1)
-
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('Accuracy')
-    l2 = ax2.plot(np.linspace(0, len(losses), len(accuracies)), accuracies, label="test accuracy", color="r")
-
-    plots = l1+l2
-    labels = [plot.get_label() for plot in plots]
-    ax2.legend(plots, labels)
-
-    if save:
-        plt.savefig(os.path.join("images", "pytorch_loss_accuracy.png"))
-    plt.show()
-
-
 def train():
     """
     Performs training and evaluation of MLP model.
@@ -135,19 +115,13 @@ def train():
     optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate)
     # optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate, momentum=0.9)
     # optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3000,5000], gamma=0.1)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3000,5000], gamma=0.1)
     
     for name, param in model.named_parameters():
         if name.endswith(".bias"):
-            # param.data.fill_(0)
             nn.init.zeros_(param.data)
         else:
-            # bound = np.sqrt(6)/np.sqrt(param.shape[0]+param.shape[1])
-            # nn.init.uniform_(param.data, -bound, bound)
-            # nn.init.xavier_uniform_(param.data)
-            # Initialize weights and bias
             nn.init.normal_(param.data, mean=0, std=0.0001)
-        # nn.init.zeros_(layer.bias)
     
     model.train()
     step = 0 
@@ -172,11 +146,10 @@ def train():
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        scheduler.step()
+        # scheduler.step()
 
         step += 1
     
-    # plot_loss_accuracy(losses, test_accuracies, save=False)
     def moving_average(a, n=3):
         # Taken from https://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
         ret = np.cumsum(a, dtype=float)
