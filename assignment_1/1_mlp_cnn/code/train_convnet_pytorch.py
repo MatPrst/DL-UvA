@@ -128,6 +128,7 @@ def train():
 
     losses = []
     test_accuracies = []
+    train_accuracies = []
 
     model = ConvNet(3, 10).to(device)
     loss_module = nn.CrossEntropyLoss()
@@ -148,6 +149,7 @@ def train():
         labels = torch.from_numpy(labels).to(device)
 
         preds = model(images)
+        train_accuracies.append(accuracy(preds, labels))
 
         loss = loss_module(preds, labels)
         losses.append(loss.item())
@@ -162,7 +164,32 @@ def train():
     test_accuracies.append(test_accuracy)
     print(f"STEP {step} - {test_accuracy}")
     
-    plot_loss_accuracy(losses, test_accuracies, True)
+    # plot_loss_accuracy(losses, test_accuracies, True)
+    def moving_average(a, n=3):
+        # Taken from https://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
+    
+    train_accuracies = moving_average(train_accuracies, n=100)
+
+    fig, ax1 = plt.subplots()
+
+    ax1.set_xlabel('Training iteration')
+    ax1.set_ylabel('Loss')
+    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", alpha=0.5, linewidth=1)
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Accuracy')
+    l2 = ax2.plot(np.linspace(0, len(losses), len(test_accuracies)), test_accuracies, label="test accuracy", color="r")
+    l3 = ax2.plot(np.linspace(0, len(losses), len(train_accuracies)), train_accuracies, label="train accuracy", color="b")
+
+    plots = l1+l2+l3
+    labels = [plot.get_label() for plot in plots]
+    ax2.legend(plots, labels)
+
+    # plt.savefig(os.path.join("images", "cnn_loss_accuracy.png"))
+    plt.show()
 
 
 def print_flags():
