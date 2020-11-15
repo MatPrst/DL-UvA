@@ -76,9 +76,10 @@ def eval(model, dataset, batch_size, device):
     
     return total_accuracy/num_batches
 
-def plot_loss_accuracy(losses, accuracies):
+def plot_loss_accuracy(losses, test_accuracies, train_accuracies):
     loss_pretrained, loss = losses
-    acc_pretrained, acc = accuracies
+    test_acc_pretrained, test_acc = test_accuracies
+    train_acc_pretrained, train_acc = train_accuracies
 
 
     fig, ax1 = plt.subplots()
@@ -90,16 +91,17 @@ def plot_loss_accuracy(losses, accuracies):
 
     ax2 = ax1.twinx()
     ax2.set_ylabel('Accuracy')
-    l3 = ax2.plot(np.linspace(0, len(loss), len(acc)), acc, label="test accuracy", color="b")
-    l4 = ax2.plot(np.linspace(0, len(loss), len(acc_pretrained)), acc_pretrained, label="test accuracy pretrained", color="r")
+    l3 = ax2.plot(np.linspace(0, len(loss), len(test_acc)), test_acc, label="test accuracy", color="b")
+    l4 = ax2.plot(np.linspace(0, len(loss), len(test_acc_pretrained)), test_acc_pretrained, label="test accuracy pretrained", color="r")
+    l5 = ax2.plot(np.linspace(0, len(loss), len(train_acc)), train_acc, label="train accuracy", color="b", linestyle="dashed")
+    l6 = ax2.plot(np.linspace(0, len(loss), len(train_acc_pretrained)), train_acc_pretrained, label="train accuracy pretrained", color="r", linestyle="dashed")
 
-    plots = l1+l2+l3+l4
+    plots = l1+l2+l3+l4+l5+l6
     labels = [plot.get_label() for plot in plots]
     ax2.legend(plots, labels)
 
-    # if save:
-    #     plt.savefig(os.path.join("images", "transfer_loss_accuracy.png"))
-    # plt.show()
+    # plt.savefig(os.path.join("images", "transfer_both_loss_accuracy.png"))
+    plt.show()
 
 def get_model(pretrained, device):
     model = models.resnet18(pretrained=pretrained)
@@ -141,6 +143,7 @@ def train(pretrained=False):
 
     losses = []
     test_accuracies = []
+    train_accuracies = []
 
     # model = ConvNet(3, 10).to(device)
     model = get_model(pretrained=pretrained, device=device)
@@ -164,6 +167,7 @@ def train(pretrained=False):
         labels = torch.from_numpy(labels).to(device)
 
         preds = model(images)
+        train_accuracies.append(accuracy(preds, labels))
 
         loss = loss_module(preds, labels)
         losses.append(loss.item())
@@ -178,7 +182,7 @@ def train(pretrained=False):
     test_accuracies.append(test_accuracy)
     print(f"STEP {step} - {test_accuracy}")
     
-    return losses, test_accuracies
+    return losses, test_accuracies, train_accuracies
 
 
 def print_flags():
@@ -200,15 +204,14 @@ def main():
         os.makedirs(FLAGS.data_dir)
     
     # Run the training operation
-    loss, acc = train(pretrained=False)
-    loss_pretrained, acc_pretrained = train(pretrained=True)
+    loss, test_acc, train_acc = train(pretrained=False)
+    loss_pretrained, test_acc_pretrained, train_acc_pretrained = train(pretrained=True)
 
     losses = (loss_pretrained, loss)
-    test_accuracies = (acc_pretrained, acc)
+    test_accuracies = (test_acc_pretrained, test_acc)
+    train_accuracies = (train_acc_pretrained, train_acc)
 
-    plot_loss_accuracy(losses, test_accuracies)
-    plt.savefig(os.path.join("images", "transfer_both_loss_accuracy.png"))
-    plt.show()
+    plot_loss_accuracy(losses, test_accuracies, train_accuracies)
 
 
 if __name__ == '__main__':
