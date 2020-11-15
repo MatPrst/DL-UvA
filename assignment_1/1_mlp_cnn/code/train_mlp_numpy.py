@@ -98,6 +98,7 @@ def train():
     test = cifar10["test"]
 
     losses = []
+    train_accuracies = []
     test_accuracies = []
 
     model = MLP(3*32*32, dnn_hidden_units, 10)
@@ -114,6 +115,7 @@ def train():
         images = images.reshape(images.shape[0], -1)
 
         preds = model.forward(images)
+        train_accuracies.append(accuracy(preds, labels))
 
         loss = loss_module.forward(preds, labels)
         dloss = loss_module.backward(preds, labels)
@@ -131,21 +133,31 @@ def train():
 
     print("END TRAINING")
 
+    def moving_average(a, n=3):
+        # Taken from https://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
+    
+    train_accuracies = moving_average(train_accuracies, n=100)
+
     fig, ax1 = plt.subplots()
 
     ax1.set_xlabel('Training iteration')
     ax1.set_ylabel('Loss')
-    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", linewidth=1)
+    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", alpha=0.5, linewidth=1)
 
     ax2 = ax1.twinx()
     ax2.set_ylabel('Accuracy')
     l2 = ax2.plot(np.linspace(0, len(losses), len(test_accuracies)), test_accuracies, label="test accuracy", color="r")
+    l3 = ax2.plot(np.linspace(0, len(losses), len(train_accuracies)), train_accuracies, label="train accuracy", color="b")
 
-    plots = l1+l2
+    plots = l1+l2+l3
     labels = [plot.get_label() for plot in plots]
     ax2.legend(plots, labels)
 
     plt.savefig(os.path.join("images", "numpy_loss_accuracy.png"))
+    plt.show()
 
 
 

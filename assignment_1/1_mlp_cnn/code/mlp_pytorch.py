@@ -33,27 +33,19 @@ class MLP(nn.Module):
         TODO:
         Implement initialization of the network.
         """
-        super(MLP, self).__init__()
+        super().__init__()
 
         layers = []
         n_in = n_inputs
         for h_layer in n_hidden:
           n_out = h_layer
-          print(n_in, n_out)
           layer = nn.Linear(n_in, n_out)
-
-          # Initialize weights and bias
-          nn.init.normal_(layer.weight, mean=0, std=0.0001)
-          nn.init.zeros_(layer.bias)
           
-          layers.append(layer)
+          layers += [layer, nn.ELU()]
           n_in = n_out
         
-        
+        layers += [nn.Linear(n_in, n_classes)]
         self.layers = nn.ModuleList(layers)
-        self.h = nn.ELU()
-        self.out_layer = nn.Linear(n_in, n_classes)
-        print(self)
 
     
     def forward(self, x):
@@ -72,7 +64,6 @@ class MLP(nn.Module):
 
         out = x.clone().detach()
         for layer in self.layers:
-          out = self.h(layer(out))
+          out = layer(out)
         
-        out = self.out_layer(out)
         return out

@@ -55,6 +55,8 @@ def accuracy(predictions, targets):
     return accuracy
 
 def eval(model, dataset, batch_size, device):
+    # model.eval()
+
     total_images = 0
     total_accuracy = 0
     num_batches = 0
@@ -115,8 +117,6 @@ def train():
     else:
         dnn_hidden_units = []
     
-    # neg_slope = FLAGS.neg_slope
-    
     ########################
     device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
     print("Using device", device)
@@ -128,10 +128,26 @@ def train():
 
     losses = []
     test_accuracies = []
+    train_accuracies = []
 
     model = MLP(3*32*32, dnn_hidden_units, 10).to(device)
     loss_module = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate, momentum=0.9)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3000,5000], gamma=0.1)
+    
+    for name, param in model.named_parameters():
+        if name.endswith(".bias"):
+            # param.data.fill_(0)
+            nn.init.zeros_(param.data)
+        else:
+            # bound = np.sqrt(6)/np.sqrt(param.shape[0]+param.shape[1])
+            # nn.init.uniform_(param.data, -bound, bound)
+            # nn.init.xavier_uniform_(param.data)
+            # Initialize weights and bias
+            nn.init.normal_(param.data, mean=0, std=0.0001)
+        # nn.init.zeros_(layer.bias)
     
     model.train()
     step = 0 
@@ -139,7 +155,7 @@ def train():
         if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
             test_accuracy = eval(model, test, FLAGS.batch_size, device)
             test_accuracies.append(test_accuracy)
-            # print(f"STEP {step} - {test_accuracy}")
+            print(f"STEP {step} - {test_accuracy}")
         
         images, labels = train.next_batch(FLAGS.batch_size)
 
@@ -148,6 +164,7 @@ def train():
         labels = torch.from_numpy(labels).to(device)
 
         preds = model(images)
+        train_accuracies.append(accuracy(preds, labels))
 
         loss = loss_module(preds, labels)
         losses.append(loss.item())
@@ -155,10 +172,36 @@ def train():
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         step += 1
     
-    plot_loss_accuracy(losses, test_accuracies, save=False)
+    # plot_loss_accuracy(losses, test_accuracies, save=False)
+    def moving_average(a, n=3):
+        # Taken from https://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
+    
+    train_accuracies = moving_average(train_accuracies, n=100)
+
+    fig, ax1 = plt.subplots()
+
+    ax1.set_xlabel('Training iteration')
+    ax1.set_ylabel('Loss')
+    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", alpha=0.5, linewidth=1)
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Accuracy')
+    l2 = ax2.plot(np.linspace(0, len(losses), len(test_accuracies)), test_accuracies, label="test accuracy", color="r")
+    l3 = ax2.plot(np.linspace(0, len(losses), len(train_accuracies)), train_accuracies, label="train accuracy", color="b")
+
+    plots = l1+l2+l3
+    labels = [plot.get_label() for plot in plots]
+    ax2.legend(plots, labels)
+
+    plt.savefig(os.path.join("images", "pytorch_loss_accuracy.png"))
+    plt.show()
     
 
 
