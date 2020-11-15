@@ -100,7 +100,7 @@ def plot_loss_accuracy(losses, test_accuracies, train_accuracies):
     labels = [plot.get_label() for plot in plots]
     ax2.legend(plots, labels)
 
-    # plt.savefig(os.path.join("images", "transfer_both_loss_accuracy.png"))
+    plt.savefig(os.path.join("images", "transfer_both_loss_accuracy.png"))
     plt.show()
 
 def get_model(pretrained, device):
@@ -182,6 +182,14 @@ def train(pretrained=False):
     test_accuracies.append(test_accuracy)
     print(f"STEP {step} - {test_accuracy}")
     
+    def moving_average(a, n=3):
+        # Taken from https://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
+
+    train_accuracies = moving_average(train_accuracies, n=100)
+
     return losses, test_accuracies, train_accuracies
 
 

@@ -188,7 +188,7 @@ def train():
     labels = [plot.get_label() for plot in plots]
     ax2.legend(plots, labels)
 
-    # plt.savefig(os.path.join("images", "cnn_loss_accuracy.png"))
+    plt.savefig(os.path.join("images", "cnn_loss_accuracy.png"))
     plt.show()
 
 
