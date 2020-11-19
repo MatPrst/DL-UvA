@@ -35,15 +35,10 @@ class CustomLayerNormAutograd(nn.Module):
         """
         super(CustomLayerNormAutograd, self).__init__()
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        self.n_neurons = n_neurons
+        self.eps = eps
+        self.gamma = nn.Parameter(torch.ones(n_neurons))
+        self.beta = nn.Parameter(torch.zeros(n_neurons))
     
     def forward(self, input):
         """
@@ -60,15 +55,13 @@ class CustomLayerNormAutograd(nn.Module):
           For the case that you make use of torch.var be aware that the flag unbiased=False should be set.
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
+        assert input.shape[1] == self.n_neurons, "wrong input shape"
 
-        raise NotImplementedError
+        mean = torch.mean(input, dim=1, keepdim=True)
+        var = torch.var(input, unbiased=False, dim=1, keepdim=True)
 
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        input_norm = (input - mean) / torch.sqrt(var + self.eps)
+        out = self.gamma * input_norm + self.beta
         
         return out
 
@@ -115,15 +108,14 @@ class CustomLayerNormManualFunction(torch.autograd.Function):
           For the case that you make use of torch.var be aware that the flag unbiased=False should be set.
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        
-        raise NotImplementedError
+        ctx.save_for_backward(input, gamma, beta)
+        ctx.constant = eps
 
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        mean = torch.mean(input, dim=1, keepdim=True)
+        var = torch.var(input, unbiased=False, dim=1, keepdim=True)
+
+        input_norm = (input - mean) / torch.sqrt(var + eps)
+        out = gamma * input_norm + beta
         
         return out
     
@@ -144,16 +136,32 @@ class CustomLayerNormManualFunction(torch.autograd.Function):
           inputs to None. This should be decided dynamically.
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
+        input, gamma, beta = ctx.saved_tensors
+        grad_input = grad_gamma = grad_beta = None
 
-        raise NotImplementedError
+        if ctx.needs_input_grad[0]: # Gradient input
+          mean = torch.mean(input, dim=1, keepdim=True)
+          var = torch.var(input, unbiased=False, dim=1, keepdim=True)
+          cnst = 1 / torch.sqrt(var + ctx.constant)
+          input_norm = (input - mean) * cnst
+
+          M = grad_output.shape[1]
+          
+          grad_input = cnst * (grad_output * gamma - 1/M * torch.sum(grad_output * gamma, dim=1, keepdim=True) - input_norm/M * torch.sum(grad_output * gamma * input_norm, dim=1, keepdim=True))
+
+        if ctx.needs_input_grad[1]: # Gradient gamma
+          mean = torch.mean(input, dim=1, keepdim=True)
+          var = torch.var(input, unbiased=False, dim=1, keepdim=True)
+
+          input_norm = (input - mean) / torch.sqrt(var + ctx.constant)
+
+          grad_gamma = (grad_output * input_norm).T @ torch.ones((input.shape[0], 1), dtype=torch.float64)
+          grad_gamma = grad_gamma.flatten()
         
-        ########################
-        # END OF YOUR CODE    #
-        #######################
-        
+        if ctx.needs_input_grad[2]: # Gradient beta
+          grad_beta = grad_output.T @ torch.ones((input.shape[0], 1), dtype=torch.float64)
+          grad_beta = grad_beta.flatten()
+
         # return gradients of the three tensor inputs and None for the constant eps
         return grad_input, grad_gamma, grad_beta, None
 
@@ -183,15 +191,10 @@ class CustomLayerNormManualModule(nn.Module):
         """
         super(CustomLayerNormManualModule, self).__init__()
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        self.n_neurons = n_neurons
+        self.eps = eps
+        self.gamma = nn.Parameter(torch.ones(n_neurons))
+        self.beta = nn.Parameter(torch.zeros(n_neurons))
     
     def forward(self, input):
         """
@@ -208,15 +211,9 @@ class CustomLayerNormManualModule(nn.Module):
           Call it via its .apply() method.
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
+        assert input.shape[1] == self.n_neurons, "wrong input shape"
 
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        out = CustomLayerNormManualFunction.apply(input, self.gamma, self.beta, self.eps)
         
         return out
 

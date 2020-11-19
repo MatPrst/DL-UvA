@@ -1,5 +1,5 @@
 """
-This module implements training and evaluation of a multi-layer perceptron in PyTorch.
+This module implements training and evaluation of a Convolutional Neural Network in PyTorch.
 You should fill in code into indicated sections.
 """
 from __future__ import absolute_import
@@ -9,20 +9,20 @@ from __future__ import print_function
 import argparse
 import numpy as np
 import os
-from mlp_pytorch import MLP
+from convnet_pytorch import ConvNet
 import cifar10_utils
 import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
+import torchvision.models as models
 
 # Default constants
-DNN_HIDDEN_UNITS_DEFAULT = '100'
-LEARNING_RATE_DEFAULT = 1e-3
-MAX_STEPS_DEFAULT = 1400 #1400
-BATCH_SIZE_DEFAULT = 200 #200
-EVAL_FREQ_DEFAULT = 100
-
+LEARNING_RATE_DEFAULT = 1e-4
+BATCH_SIZE_DEFAULT = 32
+MAX_STEPS_DEFAULT = 5000
+EVAL_FREQ_DEFAULT = 500
+OPTIMIZER_DEFAULT = 'ADAM'
 
 # Directory in which cifar data is saved
 DATA_DIR_DEFAULT = './cifar10/cifar-10-batches-py'
@@ -55,7 +55,7 @@ def accuracy(predictions, targets):
     return accuracy
 
 def eval(model, dataset, batch_size, device):
-    # model.eval()
+    model.eval()
 
     total_images = 0
     total_accuracy = 0
@@ -63,8 +63,8 @@ def eval(model, dataset, batch_size, device):
     while total_images < dataset.num_examples:
         images, labels = dataset.next_batch(batch_size)
 
-        # Reshape and convert to torch Tensor
-        images = torch.from_numpy(images.reshape(images.shape[0], -1)).to(device)
+        # Convert to torch Tensor
+        images = torch.from_numpy(images).to(device)
         labels = torch.from_numpy(labels).to(device)
 
         preds = model.forward(images)
@@ -76,12 +76,48 @@ def eval(model, dataset, batch_size, device):
     
     return total_accuracy/num_batches
 
-def train():
+def plot_loss_accuracy(losses, test_accuracies, train_accuracies):
+    loss_pretrained, loss = losses
+    test_acc_pretrained, test_acc = test_accuracies
+    train_acc_pretrained, train_acc = train_accuracies
+
+
+    fig, ax1 = plt.subplots()
+
+    ax1.set_xlabel('Training iteration')
+    ax1.set_ylabel('Loss')
+    l1 = ax1.plot(range(len(loss)), loss, label="training loss", color="b", alpha=0.5, linewidth=1)
+    l2 = ax1.plot(range(len(loss_pretrained)), loss_pretrained, label="training loss pretrained", color="r", alpha=0.5, linewidth=1)
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Accuracy')
+    l3 = ax2.plot(np.linspace(0, len(loss), len(test_acc)), test_acc, label="test accuracy", color="b")
+    l4 = ax2.plot(np.linspace(0, len(loss), len(test_acc_pretrained)), test_acc_pretrained, label="test accuracy pretrained", color="r")
+    l5 = ax2.plot(np.linspace(0, len(loss), len(train_acc)), train_acc, label="train accuracy", color="b", linestyle="dashed")
+    l6 = ax2.plot(np.linspace(0, len(loss), len(train_acc_pretrained)), train_acc_pretrained, label="train accuracy pretrained", color="r", linestyle="dashed")
+
+    plots = l1+l2+l3+l4+l5+l6
+    labels = [plot.get_label() for plot in plots]
+    ax2.legend(plots, labels)
+
+    plt.savefig(os.path.join("images", "transfer_both_loss_accuracy.png"))
+    plt.show()
+
+def get_model(pretrained, device):
+    '''
+    Return a Resnet18 model (pretrained or not) and replace the output layer so that it fits CIFAR10 and its 10 classes.
+    '''
+    model = models.resnet18(pretrained=pretrained)
+    model.fc = nn.Linear(512, 10)
+    model.to(device)
+    return model
+
+def train(pretrained=False):
     """
-    Performs training and evaluation of MLP model.
+    Performs training and evaluation of ConvNet model.
   
     TODO:
-    Implement training and evaluation of MLP model. Evaluate your model on the whole test set each eval_freq iterations.
+    Implement training and evaluation of ConvNet model. Evaluate your model on the whole test set each eval_freq iterations.
     """
     
     ### DO NOT CHANGE SEEDS!
@@ -89,19 +125,21 @@ def train():
     np.random.seed(42)
     torch.manual_seed(42)
 
-    ## Prepare all functions
-    # Get number of units in each hidden layer specified in the string such as 100,100
-    if FLAGS.dnn_hidden_units:
-        dnn_hidden_units = FLAGS.dnn_hidden_units.split(",")
-        dnn_hidden_units = [int(dnn_hidden_unit_) for dnn_hidden_unit_ in dnn_hidden_units]
-    else:
-        dnn_hidden_units = []
-    
     ########################
     device = torch.device("cpu") if not torch.cuda.is_available() else torch.device("cuda:0")
     print("Using device", device)
 
-    cifar10 = cifar10_utils.get_cifar10(data_dir=DATA_DIR_DEFAULT, one_hot=False, validation_size=0)
+    def set_seed(seed):
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available(): # GPU operation have separate seed
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+    set_seed(42)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    cifar10 = cifar10_utils.get_cifar10(data_dir=FLAGS.data_dir, one_hot=False, validation_size=0)
     train = cifar10["train"]
     valid = cifar10["validation"]
     test = cifar10["test"]
@@ -110,31 +148,24 @@ def train():
     test_accuracies = []
     train_accuracies = []
 
-    model = MLP(3*32*32, dnn_hidden_units, 10).to(device)
+    model = get_model(pretrained=pretrained, device=device)
+    print(model)
+
     loss_module = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=FLAGS.learning_rate, momentum=0.9)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3000,5000], gamma=0.1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
     
-    for name, param in model.named_parameters():
-        if name.endswith(".bias"):
-            nn.init.zeros_(param.data)
-        else:
-            nn.init.normal_(param.data, mean=0, std=0.0001)
-    
-    model.train()
     step = 0 
     while step < FLAGS.max_steps:
         if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
-            test_accuracy = eval(model, test, FLAGS.batch_size, device)
+            test_accuracy = eval(model, test, 100, device)
             test_accuracies.append(test_accuracy)
             print(f"STEP {step} - {test_accuracy}")
         
+        model.train()
         images, labels = train.next_batch(FLAGS.batch_size)
 
-        # Reshape and convert to torch Tensor
-        images = torch.from_numpy(images.reshape(images.shape[0], -1)).to(device)
+        # Convert to torch Tensor
+        images = torch.from_numpy(images).to(device)
         labels = torch.from_numpy(labels).to(device)
 
         preds = model(images)
@@ -146,36 +177,22 @@ def train():
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        # scheduler.step()
 
         step += 1
+    
+    test_accuracy = eval(model, test, 100, device)
+    test_accuracies.append(test_accuracy)
+    print(f"STEP {step} - {test_accuracy}")
     
     def moving_average(a, n=3):
         # Taken from https://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
         ret = np.cumsum(a, dtype=float)
         ret[n:] = ret[n:] - ret[:-n]
         return ret[n - 1:] / n
-    
+
     train_accuracies = moving_average(train_accuracies, n=100)
 
-    fig, ax1 = plt.subplots()
-
-    ax1.set_xlabel('Training iteration')
-    ax1.set_ylabel('Loss')
-    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", alpha=0.5, linewidth=1)
-
-    ax2 = ax1.twinx()
-    ax2.set_ylabel('Accuracy')
-    l2 = ax2.plot(np.linspace(0, len(losses), len(test_accuracies)), test_accuracies, label="test accuracy", color="r")
-    l3 = ax2.plot(np.linspace(0, len(losses), len(train_accuracies)), train_accuracies, label="train accuracy", color="b")
-
-    plots = l1+l2+l3
-    labels = [plot.get_label() for plot in plots]
-    ax2.legend(plots, labels)
-
-    plt.savefig(os.path.join("images", "pytorch_loss_accuracy.png"))
-    plt.show()
-    
+    return losses, test_accuracies, train_accuracies
 
 
 def print_flags():
@@ -197,14 +214,19 @@ def main():
         os.makedirs(FLAGS.data_dir)
     
     # Run the training operation
-    train()
+    loss, test_acc, train_acc = train(pretrained=False)
+    loss_pretrained, test_acc_pretrained, train_acc_pretrained = train(pretrained=True)
+
+    losses = (loss_pretrained, loss)
+    test_accuracies = (test_acc_pretrained, test_acc)
+    train_accuracies = (train_acc_pretrained, train_acc)
+
+    plot_loss_accuracy(losses, test_accuracies, train_accuracies)
 
 
 if __name__ == '__main__':
     # Command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dnn_hidden_units', type=str, default=DNN_HIDDEN_UNITS_DEFAULT,
-                        help='Comma separated list of number of units in each hidden layer')
     parser.add_argument('--learning_rate', type=float, default=LEARNING_RATE_DEFAULT,
                         help='Learning rate')
     parser.add_argument('--max_steps', type=int, default=MAX_STEPS_DEFAULT,

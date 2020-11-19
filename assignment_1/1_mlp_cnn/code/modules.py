@@ -24,16 +24,16 @@ class LinearModule(object):
     
         Also, initialize gradients with zeros.
         """
-        
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
 
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        self.params = {}
+        self.params["weight"] = np.random.normal(loc=0, scale=0.0001, size=(out_features, in_features))
+        self.params["bias"] = np.zeros((1, out_features))
+
+        self.grads = {}
+        self.grads["weight"] = np.zeros((out_features, in_features))
+        self.grads["bias"] = np.zeros((1, out_features))
+
+        self.x = None
     
     def forward(self, x):
         """
@@ -50,15 +50,10 @@ class LinearModule(object):
         Hint: You can store intermediate variables inside the object. They can be used in backward pass computation.
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        self.x = x.copy()
+        batch_size = x.shape[0]
+        B = np.tile(self.params["bias"], (batch_size, 1))
+        out = x @ self.params["weight"].T + B
         
         return out
     
@@ -76,15 +71,10 @@ class LinearModule(object):
         layer parameters in self.grads['weight'] and self.grads['bias'].
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-
-        raise NotImplementedError
+        self.grads["weight"] = dout.T @ self.x
+        self.grads["bias"] = np.ones(dout.shape[0]) @ dout
+        dx = dout @ self.params["weight"]
         
-        ########################
-        # END OF YOUR CODE    #
-        #######################
         return dx
 
 
@@ -93,6 +83,20 @@ class SoftMaxModule(object):
     """
     Softmax activation module.
     """
+
+    def __init__(self):
+        self.x = None
+    
+
+    def _softmax(x):
+        """Return sofmax using Max Trick - https://timvieira.github.io/blog/post/2014/02/11/exp-normalize-trick/
+        """
+
+        b = np.max(x, axis=1)
+        y = np.exp(x - b.reshape(-1, 1))
+        out = y / np.sum(y, axis=1, keepdims=True)
+
+        return out 
     
     def forward(self, x):
         """
@@ -108,16 +112,9 @@ class SoftMaxModule(object):
     
         Hint: You can store intermediate variables inside the object. They can be used in backward pass computation.
         """
-        
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
 
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        self.x = x.copy()
+        out = SoftMaxModule._softmax(x)
         
         return out
     
@@ -125,7 +122,7 @@ class SoftMaxModule(object):
         """
         Backward pass.
         Args:
-          dout: gradients of the previous modul
+          dout: gradients of the previous module
         Returns:
           dx: gradients with respect to the input of the module
     
@@ -133,16 +130,14 @@ class SoftMaxModule(object):
         Implement backward pass of the module.
         """
         
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
+        s = SoftMaxModule._softmax(self.x)
 
-        raise NotImplementedError
+        # Softmax derivative
+        common = np.einsum('ij,ik->ijk', s, s)
+        n = self.x.shape[1]
+        diag = np.einsum('ij,jk->ijk', s, np.eye(n, n))
         
-        ########################
-        # END OF YOUR CODE    #
-        #######################
-        
+        dx = np.einsum('in,ijn->ij', dout, diag - common)
         return dx
 
 
@@ -163,16 +158,9 @@ class CrossEntropyModule(object):
         TODO:
         Implement forward pass of the module.
         """
-        
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
 
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        Li = - np.sum(y*np.log(x), axis=1)
+        out = np.mean(Li)
         
         return out
     
@@ -188,16 +176,9 @@ class CrossEntropyModule(object):
         TODO:
         Implement backward pass of the module.
         """
-        
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
 
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        s = x.shape[0]
+        dx = -1/s * y / x
         
         return dx
 
@@ -206,7 +187,10 @@ class ELUModule(object):
     """
     ELU activation module.
     """
-    
+
+    def __init__(self):
+        self.x = None
+
     def forward(self, x):
         """
         Forward pass.
@@ -221,15 +205,9 @@ class ELUModule(object):
 
         Hint: You can store intermediate variables inside the object. They can be used in backward pass computation.
         """
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        
-        raise NotImplementedError
-        
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+
+        self.x = x.copy()
+        out = np.where(x >= 0, x, np.exp(x) - 1)
         
         return out
     
@@ -244,14 +222,8 @@ class ELUModule(object):
         TODO:
         Implement backward pass of the module.
         """
-        
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
 
-        raise NotImplementedError
+        d = np.where(self.x >= 0, 1, np.exp(self.x))
+        dx = dout * d
 
-        ########################
-        # END OF YOUR CODE    #
-        #######################
         return dx

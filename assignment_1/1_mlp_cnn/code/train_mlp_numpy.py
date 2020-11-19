@@ -12,6 +12,7 @@ import os
 from mlp_numpy import MLP
 from modules import CrossEntropyModule
 import cifar10_utils
+import matplotlib.pyplot as plt
 
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
@@ -44,16 +45,29 @@ def accuracy(predictions, targets):
     Implement accuracy computation.
     """
 
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    class_preds = np.argmax(predictions, axis=1)
+    class_targets = np.argmax(targets, axis=1)
+    correct_preds = (class_preds == class_targets).sum()
+    accuracy = correct_preds / predictions.shape[0]
 
     return accuracy
 
+def eval(model, dataset, batch_size):
+    total_images = 0
+    total_accuracy = 0
+    num_batches = 0
+    while total_images < dataset.num_examples:
+        images, labels = dataset.next_batch(batch_size)
+        images = images.reshape(images.shape[0], -1)
+        preds = model.forward(images)
+        
+        batch_accuracy = accuracy(preds, labels)
+        
+        total_accuracy += batch_accuracy
+        total_images += batch_size
+        num_batches += 1
+    # print("EVAL -", total_accuracy/num_batches)
+    return total_accuracy/num_batches
 
 def train():
     """
@@ -75,13 +89,76 @@ def train():
     else:
         dnn_hidden_units = []
 
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    FLAGS.eval_freq = max(FLAGS.eval_freq, 1) # Make sure eval frequency is at least 1
+
+    print("START TRAINING")
+    cifar10 = cifar10_utils.get_cifar10(data_dir=DATA_DIR_DEFAULT, one_hot=True, validation_size=0)
+    train = cifar10["train"]
+    valid = cifar10["validation"]
+    test = cifar10["test"]
+
+    losses = []
+    train_accuracies = []
+    test_accuracies = []
+
+    model = MLP(3*32*32, dnn_hidden_units, 10)
+    loss_module = CrossEntropyModule()
+
+    step = 0 
+    while step < FLAGS.max_steps:
+        if step % FLAGS.eval_freq == 0: # Evaluate the model on the test dataset
+            test_accuracy = eval(model, test, FLAGS.batch_size)
+            test_accuracies.append(test_accuracy)
+            print(f"STEP {step} - {test_accuracy}")
+        
+        images, labels = train.next_batch(FLAGS.batch_size)
+        images = images.reshape(images.shape[0], -1)
+
+        preds = model.forward(images)
+        train_accuracies.append(accuracy(preds, labels))
+
+        loss = loss_module.forward(preds, labels)
+        dloss = loss_module.backward(preds, labels)
+
+        model.backward(dloss)
+
+        # Update parameters
+        for i, layer in enumerate(model.layers):
+            if i % 2 == 0:
+                layer.params["weight"] -= FLAGS.learning_rate*layer.grads["weight"]
+                layer.params["bias"] -= FLAGS.learning_rate*layer.grads["bias"]
+
+        step += 1
+        losses.append(loss)
+
+    print("END TRAINING")
+
+    def moving_average(a, n=3):
+        # Taken from https://stackoverflow.com/questions/14313510/how-to-calculate-moving-average-using-numpy
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
+    
+    train_accuracies = moving_average(train_accuracies, n=100)
+
+    fig, ax1 = plt.subplots()
+
+    ax1.set_xlabel('Training iteration')
+    ax1.set_ylabel('Loss')
+    l1 = ax1.plot(range(len(losses)), losses, label="training loss", color="b", alpha=0.5, linewidth=1)
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Accuracy')
+    l2 = ax2.plot(np.linspace(0, len(losses), len(test_accuracies)), test_accuracies, label="test accuracy", color="r")
+    l3 = ax2.plot(np.linspace(0, len(losses), len(train_accuracies)), train_accuracies, label="train accuracy", color="b")
+
+    plots = l1+l2+l3
+    labels = [plot.get_label() for plot in plots]
+    ax2.legend(plots, labels)
+
+    plt.savefig(os.path.join("images", "numpy_loss_accuracy.png"))
+    plt.show()
+
 
 
 def print_flags():
