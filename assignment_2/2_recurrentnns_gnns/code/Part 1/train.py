@@ -37,6 +37,7 @@ from peep_lstm import peepLSTM
 
 import numpy as np
 
+import pandas as pd
 # You may want to look into tensorboardX for logging
 # from tensorboardX import SummaryWriter
 
@@ -51,6 +52,7 @@ def train(config):
     # Initialize the device which to run the model on
     device = torch.device(config.device)
     print(device)
+    print(config.input_length)
 
     # Load dataset
     if config.dataset == 'randomcomb':
@@ -132,8 +134,6 @@ def train(config):
         # Move to GPU
         batch_inputs = batch_inputs.to(device)     # [batch_size, seq_length,1]
         batch_targets = batch_targets.to(device)   # [batch_size]
-        # print(batch_inputs.shape)
-        # print(batch_targets)
 
         # Reset for next iteration
         model.zero_grad()
