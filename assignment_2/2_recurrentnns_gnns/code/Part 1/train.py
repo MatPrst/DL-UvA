@@ -118,8 +118,11 @@ def train(config):
         ).to(device)
 
     # Setup the loss and optimizer
-    loss_function = torch.nn.NLLLoss()
+    # loss_function = torch.nn.NLLLoss()
+    loss_function = torch.nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
+    print(config)
+    # return
 
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
@@ -129,6 +132,8 @@ def train(config):
         # Move to GPU
         batch_inputs = batch_inputs.to(device)     # [batch_size, seq_length,1]
         batch_targets = batch_targets.to(device)   # [batch_size]
+        # print(batch_inputs.shape)
+        # print(batch_targets)
 
         # Reset for next iteration
         model.zero_grad()
