@@ -120,12 +120,10 @@ def train(config):
         ).to(device)
 
     # Setup the loss and optimizer
-    # loss_function = torch.nn.NLLLoss()
     loss_function = torch.nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
-    print(config)
-    # return
 
+    results = {"step": [], "accuracy": [], "loss": []}
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -158,7 +156,9 @@ def train(config):
         correct = (predictions == batch_targets).sum().item()
         accuracy = correct / log_probs.size(0)
 
-        # print(predictions[0, ...], batch_targets[0, ...])
+        results["step"].append(step)
+        results["accuracy"].append(accuracy)
+        results["loss"].append(loss.item())
 
         # Just for time measurement
         t2 = time.time()
@@ -181,6 +181,8 @@ def train(config):
             break
 
     print('Done training.')
+    df = pd.DataFrame.from_dict(results)
+    df.to_csv(config.output)
     ###########################################################################
     ###########################################################################
 
@@ -225,6 +227,10 @@ if __name__ == "__main__":
                         help='Log device placement for debugging')
     parser.add_argument('--summary_path', type=str, default="./summaries/",
                         help='Output path for summaries')
+    
+    # Output
+    parser.add_argument('--output', type=str, default="./results.csv",
+                        help='Path to the csv output file containing the results')
 
     config = parser.parse_args()
 
