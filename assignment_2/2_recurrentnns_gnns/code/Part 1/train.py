@@ -45,8 +45,8 @@ import pandas as pd
 
 
 def train(config):
-    np.random.seed(0)
-    torch.manual_seed(0)
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
 
 
     # Initialize the device which to run the model on
@@ -228,9 +228,11 @@ if __name__ == "__main__":
     parser.add_argument('--summary_path', type=str, default="./summaries/",
                         help='Output path for summaries')
     
-    # Output
+    # Added
     parser.add_argument('--output', type=str, default="./results.csv",
                         help='Path to the csv output file containing the results')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Random seed')
 
     config = parser.parse_args()
 
