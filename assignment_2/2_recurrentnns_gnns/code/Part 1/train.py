@@ -123,7 +123,12 @@ def train(config):
     loss_function = torch.nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    results = {"step": [], "accuracy": [], "loss": []}
+    results = {
+        "step": [], 
+        "accuracy": [],
+        "examples_per_second": [], 
+        "loss": []
+        }
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -156,13 +161,14 @@ def train(config):
         correct = (predictions == batch_targets).sum().item()
         accuracy = correct / log_probs.size(0)
 
-        results["step"].append(step)
-        results["accuracy"].append(accuracy)
-        results["loss"].append(loss.item())
-
         # Just for time measurement
         t2 = time.time()
         examples_per_second = config.batch_size/float(t2-t1)
+
+        results["step"].append(step)
+        results["accuracy"].append(accuracy)
+        results["examples_per_second"].append(examples_per_second)
+        results["loss"].append(loss.item())
 
         if step % 60 == 0:
 
