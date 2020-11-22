@@ -25,27 +25,16 @@ class LSTM(nn.Module):
 
         self.embeding = nn.Embedding(num_embeddings=input_dim, embedding_dim=10)
 
-        self.Wgx = nn.Parameter(torch.zeros(self.input_dim, self.hidden_dim))
-        self.Wgh = nn.Parameter(torch.zeros(self.hidden_dim, self.hidden_dim))
-        self.bg = nn.Parameter(torch.zeros(self.hidden_dim))
-
-        self.Wix = nn.Parameter(torch.zeros(self.input_dim, self.hidden_dim))
-        self.Wih = nn.Parameter(torch.zeros(self.hidden_dim, self.hidden_dim))
-        self.bi = nn.Parameter(torch.zeros(self.hidden_dim))
-
-        self.Wfx = nn.Parameter(torch.zeros(self.input_dim, self.hidden_dim))
-        self.Wfh = nn.Parameter(torch.zeros(self.hidden_dim, self.hidden_dim))
-        self.bf = nn.Parameter(torch.zeros(self.hidden_dim))
-
-        self.Wox = nn.Parameter(torch.zeros(self.input_dim, self.hidden_dim))
-        self.Woh = nn.Parameter(torch.zeros(self.hidden_dim, self.hidden_dim))
-        self.bo = nn.Parameter(torch.zeros(self.hidden_dim))
+        self.g = Gate(self.input_dim, self.hidden_dim, torch.tanh)
+        self.i = Gate(self.input_dim, self.hidden_dim, torch.sigmoid)
+        self.f = Gate(self.input_dim, self.hidden_dim, torch.sigmoid)
+        self.o = Gate(self.input_dim, self.hidden_dim, torch.sigmoid)
 
         self.Wph = nn.Parameter(torch.zeros(self.hidden_dim, self.num_classes))
         self.bp = nn.Parameter(torch.zeros(self.num_classes))
 
         for name, param in self.named_parameters():
-            if name.startswith("W"):
+            if "W" in name:
                 torch.nn.init.kaiming_normal_(param.data, nonlinearity='linear')
 
 
@@ -57,13 +46,28 @@ class LSTM(nn.Module):
         for t in range(self.seq_length):
             x_t = x[:,t]
 
-            g_t = torch.tanh(x_t @ self.Wgx + h_t @ self.Wgh + self.bg)
-            i_t = torch.sigmoid(x_t @ self.Wix + h_t @ self.Wih + self.bi)
-            f_t = torch.sigmoid(x_t @ self.Wfx + h_t @ self.Wfh + self.bf)
-            o_t = torch.sigmoid(x_t @ self.Wox + h_t @ self.Woh + self.bo)
+            g_t = self.g(x_t, h_t)
+            i_t = self.i(x_t, h_t)
+            f_t = self.f(x_t, h_t)
+            o_t = self.o(x_t, h_t)
 
             c_t = g_t * i_t + c_t * f_t
             h_t = torch.tanh(c_t) * o_t
 
             p_t = h_t @ self.Wph + self.bp
         return p_t
+
+class Gate(nn.Module):
+    def __init__(self, input_dim, hidden_dim, activation):
+        super(Gate, self).__init__()
+
+        self.activation = activation
+
+        self.Wx = nn.Parameter(torch.zeros(input_dim, hidden_dim))
+        self.Wh = nn.Parameter(torch.zeros(hidden_dim, hidden_dim))
+        self.b = nn.Parameter(torch.zeros(hidden_dim))
+        
+    
+    def forward(self, x, h):
+        return self.activation(x @ self.Wx + h @ self.Wh + self.b)
+
