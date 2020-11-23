@@ -26,8 +26,23 @@ class TextGenerationModel(nn.Module):
                  lstm_num_hidden=256, lstm_num_layers=2, device='cuda:0'):
 
         super(TextGenerationModel, self).__init__()
-        # Initialization here...
+        
+        self.embedding_size = 10
+        self.embedding = nn.Embedding(vocabulary_size, self.embedding_size)
+        self.lstm = nn.LSTM(self.embedding_size, lstm_num_hidden, num_layers=2)
+        self.output = nn.Linear(lstm_num_hidden, vocabulary_size)
 
     def forward(self, x):
-        # Implementation here...
-        pass
+        # print('forward')
+        # print("forward input shape:", x.shape)
+        # print(x[0])
+        x = self.embedding(x)
+        # print("after embedding:", x.shape)
+        # print(x[0])
+        x, (h, c) = self.lstm(x)
+        # print(x.shape)
+        out = self.output(x)
+        # print(out.shape)
+        return out, (h, c)
+
+

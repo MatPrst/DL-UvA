@@ -28,39 +28,66 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from part2.dataset import TextDataset
-from part2.model import TextGenerationModel
+from dataset import TextDataset
+from model import TextGenerationModel
 
 ###############################################################################
 
-
 def train(config):
 
+    print(config)
     # Initialize the device which to run the model on
     device = torch.device(config.device)
 
     # Initialize the dataset and data loader (note the +1)
-    dataset = TextDataset(...)  # fixme
+    dataset = TextDataset(config.txt_file, config.seq_length)  # fixme
     data_loader = DataLoader(dataset, config.batch_size)
 
     # Initialize the model that we are going to use
-    model = TextGenerationModel(...)  # FIXME
+    model = TextGenerationModel(
+        batch_size=config.batch_size,
+        seq_length=config.seq_length,
+        vocabulary_size=dataset.vocab_size,
+        lstm_num_hidden=config.lstm_num_hidden,
+        lstm_num_layers=config.lstm_num_layers,
+        device=config.device
+        )
 
     # Setup the loss and optimizer
-    criterion = None  # FIXME
-    optimizer = None  # FIXME
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
         t1 = time.time()
 
-        #######################################################
-        # Add more code here ...
-        #######################################################
+        # print(batch_inputs[0].shape)
+        # sequence = [char[0].item() for char in batch_inputs]
+        # print(torch.tensor(batch_inputs))
+        # print(dataset.convert_to_string(sequence))
+        batch_inputs = torch.stack(batch_inputs)
+        batch_targets = torch.stack(batch_targets)
 
-        loss = np.inf   # fixme
-        accuracy = 0.0  # fixme
+        model.zero_grad()
+        batch_preds, (h, c) = model(batch_inputs)
+        # print("out forward")
+        # print("model output:", batch_preds.shape)
+        # print("target NOT transposed:", batch_targets.shape)
+        
+        # print(batch_preds.transpose(0, 1).shape)
+        # print(batch_targets.T.shape)
+
+        loss = criterion(batch_preds.transpose(1, 2), batch_targets)
+        loss.backward()
+        optimizer.step()
+
+
+        loss = loss.item()   # fixme
+        accuracy = 0
+        preds = torch.argmax(batch_preds.transpose(1, 2), dim=1)
+        # print(batch_targets.shape)
+        accuracy = (preds == batch_targets).sum().item()/config.batch_size
 
         # Just for time measurement
         t2 = time.time()
@@ -122,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument('--dropout_keep_prob', type=float, default=1.0,
                         help='Dropout keep probability')
 
-    parser.add_argument('--train_steps', type=int, default=1e6,
+    parser.add_argument('--train_steps', type=int, default=int(1e6),
                         help='Number of training steps')
     parser.add_argument('--max_norm', type=float, default=5.0, help='--')
 
@@ -133,6 +160,8 @@ if __name__ == "__main__":
                         help='How often to print training progress')
     parser.add_argument('--sample_every', type=int, default=100,
                         help='How often to sample from the model')
+    parser.add_argument('--device', type=str, default=("cpu" if not torch.cuda.is_available() else "cuda"),
+                        help="Device to run the model on.")
 
     # If needed/wanted, feel free to add more arguments
 
