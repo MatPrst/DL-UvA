@@ -36,8 +36,8 @@ from gru import GRU
 from peep_lstm import peepLSTM
 
 import numpy as np
-
 import pandas as pd
+import os
 # You may want to look into tensorboardX for logging
 # from tensorboardX import SummaryWriter
 
@@ -60,49 +60,16 @@ def eval(model, data_loader, num_batches=20, device="cpu"):
             break
     return total_accuracy / step
 
+def get_results_file(config):
+    name = f"results_{config.model_type}_{config.input_length}_{config.seed}.csv"
+    return name
 
-def train(config):
-    np.random.seed(config.seed)
-    torch.manual_seed(config.seed)
+def get_model_file(config):
+    name = f"model_{config.model_type}_{config.input_length}_{config.seed}.tar"
+    return name
 
-
-    # Initialize the device which to run the model on
+def get_model(config):
     device = torch.device(config.device)
-    print(device)
-    print(config.input_length)
-
-    # Load dataset
-    if config.dataset == 'randomcomb':
-        print('Load random combinations dataset ...')
-        # Initialize the dataset and data loader
-        config.num_classes = config.input_length
-        dataset = datasets.RandomCombinationsDataset(config.input_length)
-        data_loader = DataLoader(dataset, config.batch_size, num_workers=1,
-                                 drop_last=True)
-
-    elif config.dataset == 'bss':
-        print('Load bss dataset ...')
-        # Initialize the dataset and data loader
-        config.num_classes = 2
-        config.input_dim = 3
-        dataset = datasets.BaumSweetSequenceDataset(config.input_length)
-        data_loader = DataLoader(dataset, config.batch_size, num_workers=1,
-                                 drop_last=True)
-
-        config.input_length = 4 * config.input_length
-
-    elif config.dataset == 'bipalindrome':
-        print('Load binary palindrome dataset ...')
-        # Initialize the dataset and data loader
-        config.num_classes = config.input_length
-        dataset = datasets.BinaryPalindromeDataset(config.input_length)
-        data_loader = DataLoader(dataset, config.batch_size, num_workers=1,
-                                 drop_last=True)
-
-        config.input_length = config.input_length*4+2-1
-
-
-
     # Setup the model that we are going to use
     if config.model_type == 'LSTM':
         print("Initializing LSTM model ...")
@@ -135,6 +102,51 @@ def train(config):
             config.num_hidden, config.num_classes,
             config.batch_size, device
         ).to(device)
+    
+    return model
+
+def get_data_loader(config):
+    # Load dataset
+    if config.dataset == 'randomcomb':
+        print('Load random combinations dataset ...')
+        # Initialize the dataset and data loader
+        config.num_classes = config.input_length
+        dataset = datasets.RandomCombinationsDataset(config.input_length)
+        data_loader = DataLoader(dataset, config.batch_size, num_workers=1,
+                                 drop_last=True)
+
+    elif config.dataset == 'bss':
+        print('Load bss dataset ...')
+        # Initialize the dataset and data loader
+        config.num_classes = 2
+        config.input_dim = 3
+        dataset = datasets.BaumSweetSequenceDataset(config.input_length)
+        data_loader = DataLoader(dataset, config.batch_size, num_workers=1,
+                                 drop_last=True)
+
+        config.input_length = 4 * config.input_length
+
+    elif config.dataset == 'bipalindrome':
+        print('Load binary palindrome dataset ...')
+        # Initialize the dataset and data loader
+        config.num_classes = config.input_length
+        dataset = datasets.BinaryPalindromeDataset(config.input_length)
+        data_loader = DataLoader(dataset, config.batch_size, num_workers=1,
+                                 drop_last=True)
+
+        config.input_length = config.input_length*4+2-1
+    
+    return data_loader
+
+
+def train(config):
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
+
+    device = torch.device(config.device)
+
+    data_loader = get_data_loader(config)
+    model = get_model(config)
 
     # Setup the loss and optimizer
     loss_function = torch.nn.CrossEntropyLoss()
@@ -143,14 +155,14 @@ def train(config):
     results = {
         "step": [], 
         "accuracy": [],
-        "examples_per_second": [], 
-        "loss": []
+        "examples_per_second": []
         }
     
     patience = 20 # number of steps
     counter = 0
     delta = 0.005
     best_accuracy = 0
+    best_test_accuracy = 0
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -188,7 +200,6 @@ def train(config):
 
         if abs(accuracy - best_accuracy) < delta:
             counter +=1
-            # print(f"Early stopping count={counter}")
             if counter >= patience:
                 print(f"Early stopping training")
                 break
@@ -200,11 +211,6 @@ def train(config):
         t2 = time.time()
         examples_per_second = config.batch_size/float(t2-t1)
 
-        results["step"].append(step)
-        results["accuracy"].append(accuracy)
-        results["examples_per_second"].append(examples_per_second)
-        results["loss"].append(loss.item())
-
         if step % 60 == 0:
 
             print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, \
@@ -214,6 +220,14 @@ def train(config):
                     config.train_steps, config.batch_size, examples_per_second,
                     accuracy, loss
                     ))
+            
+            test_accuracy = eval(model, data_loader, num_batches=20, device=device)
+            results["step"].append(step)
+            results["accuracy"].append(test_accuracy)
+            results["examples_per_second"].append(examples_per_second)
+
+            if test_accuracy > best_test_accuracy:
+                torch.save(model.state_dict(), get_model_file(config))
 
         # Check if training is finished
         if step == config.train_steps:
@@ -225,7 +239,10 @@ def train(config):
     df = pd.DataFrame.from_dict(results)
     df.to_csv(config.output)
 
-    print(f"Final accuracy: {eval(model, data_loader, num_batches=20, device=device)}")
+    print('Evaluating model')
+    net = get_model(config)
+    net.load_state_dict(torch.load(get_model_file(config), map_location=device))
+    print(f"Final accuracy: {eval(model, data_loader, num_batches=100, device=device)}")
     ###########################################################################
     ###########################################################################
 
