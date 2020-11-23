@@ -42,6 +42,23 @@ import pandas as pd
 # from tensorboardX import SummaryWriter
 
 ###############################################################################
+def eval(model, data_loader, num_batches=20, device="cpu"):
+    model.eval()
+    total_accuracy = 0
+    for step, (batch_inputs, batch_targets) in enumerate(data_loader, 1):
+        batch_inputs = batch_inputs.to(device)
+        batch_targets = batch_targets.to(device)
+
+        model.zero_grad()
+        log_probs = model(batch_inputs)
+        predictions = torch.argmax(log_probs, dim=1)
+        correct = (predictions == batch_targets).sum().item()
+        accuracy = correct / log_probs.size(0)
+        total_accuracy += accuracy
+
+        if step >= num_batches:
+            break
+    return total_accuracy / step
 
 
 def train(config):
@@ -129,6 +146,11 @@ def train(config):
         "examples_per_second": [], 
         "loss": []
         }
+    
+    patience = 20 # number of steps
+    counter = 0
+    delta = 0.005
+    best_accuracy = 0
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -161,6 +183,19 @@ def train(config):
         correct = (predictions == batch_targets).sum().item()
         accuracy = correct / log_probs.size(0)
 
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+
+        if abs(accuracy - best_accuracy) < delta:
+            counter +=1
+            # print(f"Early stopping count={counter}")
+            if counter >= patience:
+                print(f"Early stopping training")
+                break
+                
+        else:
+            counter = 0
+
         # Just for time measurement
         t2 = time.time()
         examples_per_second = config.batch_size/float(t2-t1)
@@ -189,6 +224,8 @@ def train(config):
     print('Done training.')
     df = pd.DataFrame.from_dict(results)
     df.to_csv(config.output)
+
+    print(f"Final accuracy: {eval(model, data_loader, num_batches=20, device=device)}")
     ###########################################################################
     ###########################################################################
 
