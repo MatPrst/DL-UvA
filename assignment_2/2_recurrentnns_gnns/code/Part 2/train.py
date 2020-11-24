@@ -62,32 +62,36 @@ def train(config):
         # Only for time measurement of step through network
         t1 = time.time()
 
-        # print(batch_inputs[0].shape)
-        # sequence = [char[0].item() for char in batch_inputs]
-        # print(torch.tensor(batch_inputs))
-        # print(dataset.convert_to_string(sequence))
+        # print(batch_targets)
         batch_inputs = torch.stack(batch_inputs)
+        
         batch_targets = torch.stack(batch_targets)
+        # print(batch_targets)
+        # print(dataset.convert_to_string(batch_inputs[:,0].numpy()))
+        # print(dataset.convert_to_string(batch_targets[:,0].numpy()))
+
+        # print(batch_inputs.shape)
+        # print(batch_inputs)
+        # print(batch_targets.shape)
 
         model.zero_grad()
         batch_preds, (h, c) = model(batch_inputs)
-        # print("out forward")
-        # print("model output:", batch_preds.shape)
-        # print("target NOT transposed:", batch_targets.shape)
-        
-        # print(batch_preds.transpose(0, 1).shape)
-        # print(batch_targets.T.shape)
+        # break
 
-        loss = criterion(batch_preds.transpose(1, 2), batch_targets)
+        loss = 0
+
+        for i in range(config.seq_length):
+            batch_pred = batch_preds[i]
+            batch_target = batch_targets[i]
+            loss += criterion(batch_pred, batch_target)
+
+        loss = loss / config.seq_length
         loss.backward()
         optimizer.step()
 
-
-        loss = loss.item()   # fixme
-        accuracy = 0
-        preds = torch.argmax(batch_preds.transpose(1, 2), dim=1)
-        # print(batch_targets.shape)
-        accuracy = (preds == batch_targets).sum().item()/config.batch_size
+        loss = loss.item()
+        preds = torch.argmax(batch_preds, dim=2)
+        accuracy = (preds == batch_targets).sum().item() / (config.batch_size * config.seq_length)
 
         # Just for time measurement
         t2 = time.time()

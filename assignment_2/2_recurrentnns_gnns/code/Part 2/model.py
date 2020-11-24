@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import torch.nn as nn
+import torch
 
 
 class TextGenerationModel(nn.Module):
@@ -27,18 +28,20 @@ class TextGenerationModel(nn.Module):
 
         super(TextGenerationModel, self).__init__()
         
-        self.embedding_size = 10
+        self.embedding_size = 256
         self.embedding = nn.Embedding(vocabulary_size, self.embedding_size)
         self.lstm = nn.LSTM(self.embedding_size, lstm_num_hidden, num_layers=2)
         self.output = nn.Linear(lstm_num_hidden, vocabulary_size)
 
+        for name, param in self.named_parameters():
+            print(name)
+        #     if "weight" in name:
+        #         torch.nn.init.kaiming_normal_(param.data, nonlinearity='linear')
+
     def forward(self, x):
-        # print('forward')
-        # print("forward input shape:", x.shape)
-        # print(x[0])
+        # print(x.shape)
         x = self.embedding(x)
-        # print("after embedding:", x.shape)
-        # print(x[0])
+        # print(x.shape)
         x, (h, c) = self.lstm(x)
         # print(x.shape)
         out = self.output(x)
