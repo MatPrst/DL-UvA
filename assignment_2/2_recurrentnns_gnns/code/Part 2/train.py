@@ -34,12 +34,9 @@ from model import TextGenerationModel
 import pandas as pd
 
 ###############################################################################
-def get_results_file(config):
-    name = f"results_{config.seq_length}_{config.seed}.csv"
-    return name
-
 def get_model_file(epoch, config):
-    name = f"model_{epoch}_{config.seed}.tar"
+    book = config.txt_file.split("/")[1].split('.')[0][5:]
+    name = f"model_{book}_{epoch}_{config.seed}.tar"
     return name
 
 def sample(model, dataset, init_seq, init_hidden, seq_length, device, temp=None):
