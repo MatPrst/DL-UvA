@@ -38,14 +38,10 @@ class TextGenerationModel(nn.Module):
         #     if "weight" in name:
         #         torch.nn.init.kaiming_normal_(param.data, nonlinearity='linear')
 
-    def forward(self, x):
-        # print(x.shape)
+    def forward(self, x, hidden):
         x = self.embedding(x)
-        # print(x.shape)
-        x, (h, c) = self.lstm(x)
-        # print(x.shape)
+        x, (h, c) = self.lstm(x, hidden)
         out = self.output(x)
-        # print(out.shape)
         return out, (h, c)
 
 

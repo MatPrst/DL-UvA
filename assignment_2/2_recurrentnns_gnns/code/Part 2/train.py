@@ -33,6 +33,23 @@ from model import TextGenerationModel
 
 ###############################################################################
 
+def sample(model, dataset, init_seq, init_hidden, seq_length, device, temp=None):
+    model.eval()
+    batch_preds, hidden = model(init_seq, init_hidden)
+    
+    s = ""
+    for _ in range(seq_length):
+        if temp is None:
+            pred = torch.argmax(batch_preds, dim=2)
+        else:
+            pred = torch.multinomial(torch.softmax(temp * batch_preds, dim=2)[0], 1)
+
+        pred_token = dataset.convert_to_string(pred.data.cpu().numpy().flatten())
+        
+        s += pred_token
+        batch_preds, hidden = model(torch.tensor(pred), hidden)
+    return s
+
 def train(config):
 
     print(config)
@@ -41,7 +58,7 @@ def train(config):
 
     # Initialize the dataset and data loader (note the +1)
     dataset = TextDataset(config.txt_file, config.seq_length)  # fixme
-    data_loader = DataLoader(dataset, config.batch_size)
+    data_loader = DataLoader(dataset, config.batch_size, drop_last=True)
 
     # Initialize the model that we are going to use
     model = TextGenerationModel(
@@ -51,71 +68,87 @@ def train(config):
         lstm_num_hidden=config.lstm_num_hidden,
         lstm_num_layers=config.lstm_num_layers,
         device=config.device
-        )
+        ).to(device)
 
     # Setup the loss and optimizer
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    for step, (batch_inputs, batch_targets) in enumerate(data_loader):
+    for epoch in range(config.epochs):
+        for step, (batch_inputs, batch_targets) in enumerate(data_loader):
+            model.train()
+            # Only for time measurement of step through network
+            t1 = time.time()
 
-        # Only for time measurement of step through network
-        t1 = time.time()
+            batch_inputs = torch.stack(batch_inputs).to(device)
+            batch_targets = torch.stack(batch_targets).to(device)
 
-        # print(batch_targets)
-        batch_inputs = torch.stack(batch_inputs)
-        
-        batch_targets = torch.stack(batch_targets)
-        # print(batch_targets)
-        # print(dataset.convert_to_string(batch_inputs[:,0].numpy()))
-        # print(dataset.convert_to_string(batch_targets[:,0].numpy()))
+            hidden = (
+                torch.zeros((config.lstm_num_layers, config.batch_size, config.lstm_num_hidden)).to(device),
+                torch.zeros((config.lstm_num_layers, config.batch_size, config.lstm_num_hidden)).to(device)
+            )
+            model.zero_grad()
+            batch_preds, (h, c) = model(batch_inputs, hidden)
 
-        # print(batch_inputs.shape)
-        # print(batch_inputs)
-        # print(batch_targets.shape)
+            loss = 0
 
-        model.zero_grad()
-        batch_preds, (h, c) = model(batch_inputs)
-        # break
+            for i in range(config.seq_length):
+                batch_pred = batch_preds[i]
+                batch_target = batch_targets[i]
+                loss += criterion(batch_pred, batch_target)
 
-        loss = 0
+            loss = loss / config.seq_length
+            loss.backward()
+            optimizer.step()
 
-        for i in range(config.seq_length):
-            batch_pred = batch_preds[i]
-            batch_target = batch_targets[i]
-            loss += criterion(batch_pred, batch_target)
+            loss = loss.item()
+            preds = torch.argmax(batch_preds, dim=2)
+            accuracy = (preds == batch_targets).sum().item() / (config.batch_size * config.seq_length)
 
-        loss = loss / config.seq_length
-        loss.backward()
-        optimizer.step()
+            # Just for time measurement
+            t2 = time.time()
+            examples_per_second = config.batch_size/float(t2-t1)
 
-        loss = loss.item()
-        preds = torch.argmax(batch_preds, dim=2)
-        accuracy = (preds == batch_targets).sum().item() / (config.batch_size * config.seq_length)
+            if (step + 1) % config.print_every == 0:
 
-        # Just for time measurement
-        t2 = time.time()
-        examples_per_second = config.batch_size/float(t2-t1)
+                print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, \
+                        Examples/Sec = {:.2f}, "
+                    "Accuracy = {:.2f}, Loss = {:.3f}".format(
+                        datetime.now().strftime("%Y-%m-%d %H:%M"), step,
+                        config.train_steps, config.batch_size, examples_per_second,
+                        accuracy, loss
+                        ))
 
-        if (step + 1) % config.print_every == 0:
+            if (step + 1) % config.sample_every == 0:
+                # Generate some sentences by sampling from the model
+                # char_id = torch.randint(low=0, high=dataset.vocab_size, size=(1,1)).to(device)
+                seq = [dataset._char_to_ix[ch] for ch in "France is not"]
+                # print(np.array(seq).reshape(-1, 1))
+                # continue
+                for _ in range(2):
+                    char_id = torch.randint(low=0, high=dataset.vocab_size, size=(1,1)).to(device)
+                    char_id = torch.tensor([dataset._char_to_ix[ch] for ch in "t"]).reshape(-1, 1).to(device)
+                    # print(char_id)
+                    # print(char_id)
+                    hidden = (
+                        torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device),
+                        torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device)
+                    )
+                    sequence = sample(
+                        model=model, 
+                        dataset=dataset, 
+                        init_seq=char_id, 
+                        init_hidden=hidden, 
+                        seq_length=100, 
+                        device=device,
+                        temp=config.temp)
+                    print("t" + sequence)
 
-            print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, \
-                    Examples/Sec = {:.2f}, "
-                  "Accuracy = {:.2f}, Loss = {:.3f}".format(
-                    datetime.now().strftime("%Y-%m-%d %H:%M"), step,
-                    config.train_steps, config.batch_size, examples_per_second,
-                    accuracy, loss
-                    ))
-
-        if (step + 1) % config.sample_every == 0:
-            # Generate some sentences by sampling from the model
-            pass
-
-        if step == config.train_steps:
-            # If you receive a PyTorch data-loader error,
-            # check this bug report:
-            # https://github.com/pytorch/pytorch/pull/9655
-            break
+            if step == config.train_steps:
+                # If you receive a PyTorch data-loader error,
+                # check this bug report:
+                # https://github.com/pytorch/pytorch/pull/9655
+                break
 
     print('Done training.')
 
@@ -168,6 +201,10 @@ if __name__ == "__main__":
                         help="Device to run the model on.")
 
     # If needed/wanted, feel free to add more arguments
+    parser.add_argument('--epochs', type=int, default=1,
+                        help='Number of epochs')
+    parser.add_argument('--temp', type=float, default=1.0,
+                        help='Temperature of the sampling process')
 
     config = parser.parse_args()
 
