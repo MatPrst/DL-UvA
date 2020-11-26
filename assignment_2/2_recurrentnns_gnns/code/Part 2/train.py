@@ -31,7 +31,16 @@ from torch.utils.data import DataLoader
 from dataset import TextDataset
 from model import TextGenerationModel
 
+import pandas as pd
+
 ###############################################################################
+def get_results_file(config):
+    name = f"results_{config.seq_length}_{config.seed}.csv"
+    return name
+
+def get_model_file(epoch, config):
+    name = f"model_{epoch}_{config.seed}.tar"
+    return name
 
 def sample(model, dataset, init_seq, init_hidden, seq_length, device, temp=None):
     model.eval()
@@ -47,12 +56,15 @@ def sample(model, dataset, init_seq, init_hidden, seq_length, device, temp=None)
         pred_token = dataset.convert_to_string(pred.data.cpu().numpy().flatten())
         
         s += pred_token
-        batch_preds, hidden = model(torch.tensor(pred), hidden)
+        batch_preds, hidden = model(pred, hidden)
     return s
 
 def train(config):
-
     print(config)
+
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
+
     # Initialize the device which to run the model on
     device = torch.device(config.device)
 
@@ -74,9 +86,16 @@ def train(config):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
+    results = {
+        "step": [],
+        "loss": [],
+        "accuracy": []
+    }
+    total_step = 0
     for epoch in range(config.epochs):
         for step, (batch_inputs, batch_targets) in enumerate(data_loader):
             model.train()
+            total_step += 1
             # Only for time measurement of step through network
             t1 = time.time()
 
@@ -109,48 +128,54 @@ def train(config):
             t2 = time.time()
             examples_per_second = config.batch_size/float(t2-t1)
 
+            results["step"].append(total_step)
+            results["loss"].append(loss)
+            results["accuracy"].append(accuracy)
+
             if (step + 1) % config.print_every == 0:
 
-                print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, \
+                print("[{}] Epoch {:02d}, Train Step {:04d}/{:04d}, Batch Size = {}, \
                         Examples/Sec = {:.2f}, "
                     "Accuracy = {:.2f}, Loss = {:.3f}".format(
-                        datetime.now().strftime("%Y-%m-%d %H:%M"), step,
+                        datetime.now().strftime("%Y-%m-%d %H:%M"), epoch, step,
                         config.train_steps, config.batch_size, examples_per_second,
                         accuracy, loss
                         ))
 
             if (step + 1) % config.sample_every == 0:
                 # Generate some sentences by sampling from the model
-                # char_id = torch.randint(low=0, high=dataset.vocab_size, size=(1,1)).to(device)
-                seq = [dataset._char_to_ix[ch] for ch in "France is not"]
-                # print(np.array(seq).reshape(-1, 1))
-                # continue
-                for _ in range(2):
-                    char_id = torch.randint(low=0, high=dataset.vocab_size, size=(1,1)).to(device)
-                    char_id = torch.tensor([dataset._char_to_ix[ch] for ch in "t"]).reshape(-1, 1).to(device)
-                    # print(char_id)
-                    # print(char_id)
-                    hidden = (
-                        torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device),
-                        torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device)
-                    )
-                    sequence = sample(
-                        model=model, 
-                        dataset=dataset, 
-                        init_seq=char_id, 
-                        init_hidden=hidden, 
-                        seq_length=100, 
-                        device=device,
-                        temp=config.temp)
-                    print("t" + sequence)
+
+                char_id = torch.randint(low=0, high=dataset.vocab_size, size=(1,1)).to(device)
+                # print(char_id)
+
+                # char_id = torch.tensor([dataset._char_to_ix[ch] for ch in "to"]).reshape(-1, 1).to(device)
+                hidden = (
+                    torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device),
+                    torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device)
+                )
+                sequence = sample(
+                    model=model, 
+                    dataset=dataset, 
+                    init_seq=char_id, 
+                    init_hidden=hidden, 
+                    seq_length=100, 
+                    device=device,
+                    temp=config.temp)
+                print(dataset.convert_to_string(char_id.cpu().numpy().reshape(-1)) + sequence)
 
             if step == config.train_steps:
                 # If you receive a PyTorch data-loader error,
                 # check this bug report:
                 # https://github.com/pytorch/pytorch/pull/9655
                 break
+        
+        # Save model after each epoch
+        torch.save(model.state_dict(), get_model_file(epoch, config))
 
     print('Done training.')
+
+    df = pd.DataFrame.from_dict(results)
+    df.to_csv(config.output)
 
 
 ###############################################################################
@@ -201,6 +226,10 @@ if __name__ == "__main__":
                         help="Device to run the model on.")
 
     # If needed/wanted, feel free to add more arguments
+    parser.add_argument('--output', type=str, default="./results.csv",
+                        help='Path to the csv output file containing the results')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Random seed')
     parser.add_argument('--epochs', type=int, default=1,
                         help='Number of epochs')
     parser.add_argument('--temp', type=float, default=1.0,
