@@ -155,6 +155,7 @@ def train(config):
     results = {
         "step": [], 
         "accuracy": [],
+        "loss": [],
         "examples_per_second": []
         }
     
@@ -188,12 +189,20 @@ def train(config):
         torch.nn.utils.clip_grad_norm_(model.parameters(),
                                        max_norm=config.max_norm)
         #######################################################################
-
         optimizer.step()
 
         predictions = torch.argmax(log_probs, dim=1)
         correct = (predictions == batch_targets).sum().item()
         accuracy = correct / log_probs.size(0)
+
+        # Just for time measurement
+        t2 = time.time()
+        examples_per_second = config.batch_size/float(t2-t1)
+
+        results["step"].append(step)
+        results["accuracy"].append(accuracy)
+        results["loss"].append(loss.item())
+        results["examples_per_second"].append(examples_per_second)
 
         if accuracy > best_accuracy:
             best_accuracy = accuracy
@@ -207,10 +216,6 @@ def train(config):
         else:
             counter = 0
 
-        # Just for time measurement
-        t2 = time.time()
-        examples_per_second = config.batch_size/float(t2-t1)
-
         if step % 60 == 0:
 
             print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, \
@@ -222,9 +227,6 @@ def train(config):
                     ))
             
             test_accuracy = eval(model, data_loader, num_batches=20, device=device)
-            results["step"].append(step)
-            results["accuracy"].append(test_accuracy)
-            results["examples_per_second"].append(examples_per_second)
 
             if test_accuracy > best_test_accuracy:
                 torch.save(model.state_dict(), get_model_file(config))
