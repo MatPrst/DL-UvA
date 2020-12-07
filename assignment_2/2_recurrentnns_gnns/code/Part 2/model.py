@@ -30,13 +30,8 @@ class TextGenerationModel(nn.Module):
         
         self.embedding_size = 256
         self.embedding = nn.Embedding(vocabulary_size, self.embedding_size)
-        self.lstm = nn.LSTM(self.embedding_size, lstm_num_hidden, num_layers=2)
+        self.lstm = nn.LSTM(self.embedding_size, lstm_num_hidden, num_layers=lstm_num_layers)
         self.output = nn.Linear(lstm_num_hidden, vocabulary_size)
-
-        for name, param in self.named_parameters():
-            print(name)
-        #     if "weight" in name:
-        #         torch.nn.init.kaiming_normal_(param.data, nonlinearity='linear')
 
     def forward(self, x, hidden):
         x = self.embedding(x)

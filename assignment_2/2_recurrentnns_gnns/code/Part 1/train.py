@@ -161,7 +161,7 @@ def train(config):
     
     patience = 20 # number of steps
     counter = 0
-    delta = 0.005
+    delta = 0.005 # earling stopping
     best_accuracy = 0
     best_test_accuracy = 0
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):

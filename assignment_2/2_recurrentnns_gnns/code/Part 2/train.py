@@ -143,9 +143,7 @@ def train(config):
                 # Generate some sentences by sampling from the model
 
                 char_id = torch.randint(low=0, high=dataset.vocab_size, size=(1,1)).to(device)
-                # print(char_id)
 
-                # char_id = torch.tensor([dataset._char_to_ix[ch] for ch in "to"]).reshape(-1, 1).to(device)
                 hidden = (
                     torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device),
                     torch.zeros((config.lstm_num_layers, 1, config.lstm_num_hidden)).to(device)
@@ -155,7 +153,7 @@ def train(config):
                     dataset=dataset, 
                     init_seq=char_id, 
                     init_hidden=hidden, 
-                    seq_length=100, 
+                    seq_length=config.seq_length, 
                     device=device,
                     temp=config.temp)
                 print(dataset.convert_to_string(char_id.cpu().numpy().reshape(-1)) + sequence)

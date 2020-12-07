@@ -51,8 +51,6 @@ class GRU(nn.Module):
             x_t = x[:,t]
             c = torch.cat((h_t, x_t), dim=1)
 
-            # print(c.shape)
-            # print(self.Wz.shape)
             z_t = torch.sigmoid(c @ self.Wz)
             r_t = torch.sigmoid(c @ self.Wr)
 
