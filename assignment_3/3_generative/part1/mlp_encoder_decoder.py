@@ -36,7 +36,17 @@ class MLPEncoder(nn.Module):
         # For an intial architecture, you can use a sequence of linear layers and ReLU activations.
         # Feel free to experiment with the architecture yourself, but the one specified here is 
         # sufficient for the assignment.
-        raise NotImplementedError
+        
+        layers = []
+        in_dim = input_dim
+        for dim in hidden_dims:
+            layers.append(nn.Linear(in_dim, dim))
+            layers.append(nn.ReLU())
+            in_dim = dim
+        
+        self.latent_dim = z_dim
+        layers.append(nn.Linear(in_dim, 2*self.latent_dim))
+        self.encoder = nn.Sequential(*layers)
 
     def forward(self, x):
         """
@@ -49,9 +59,10 @@ class MLPEncoder(nn.Module):
         """
 
         # Remark: Make sure to understand why we are predicting the log_std and not std
-        mean = None
-        log_std = None
-        raise NotImplementedError
+        batch_size, _, _, _ = x.shape
+        encoding = self.encoder(x.view(batch_size, -1))
+        mean = encoding[:,:self.latent_dim]
+        log_std = encoding[:,self.latent_dim:]
         return mean, log_std
 
 
@@ -73,7 +84,17 @@ class MLPDecoder(nn.Module):
         # For an intial architecture, you can use a sequence of linear layers and ReLU activations.
         # Feel free to experiment with the architecture yourself, but the one specified here is 
         # sufficient for the assignment.
-        raise NotImplementedError
+        self.latent_dim = z_dim
+        layers = []
+        in_dim = self.latent_dim
+        for dim in hidden_dims:
+            layers.append(nn.Linear(in_dim, dim))
+            layers.append(nn.ReLU())
+            in_dim = dim
+        
+        output_dim = np.prod(np.array(self.output_shape))
+        layers.append(nn.Linear(in_dim, output_dim))
+        self.decoder = nn.Sequential(*layers)
 
     def forward(self, z):
         """
@@ -85,8 +106,9 @@ class MLPDecoder(nn.Module):
                 Shape: [B,output_shape[0],output_shape[1],output_shape[2]]
         """
 
-        x = None
-        raise NotImplementedError
+        batch_size, _ = z.shape
+        x = self.decoder(z)
+        x = x.view(batch_size, *self.output_shape)
         return x
 
     @property
