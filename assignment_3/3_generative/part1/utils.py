@@ -19,6 +19,8 @@ from torchvision.utils import make_grid
 import numpy as np
 from scipy.stats import norm
 
+import matplotlib.pyplot as plt
+
 
 def sample_reparameterize(mean, std):
     """
@@ -32,7 +34,7 @@ def sample_reparameterize(mean, std):
             The tensor should have the same shape as the mean and std input tensors.
     """
 
-    eps = torch.randn(mean.shape)
+    eps = torch.randn(mean.shape).to(mean.device)
     z = mean + std * eps
     return z
 
@@ -63,7 +65,7 @@ def elbo_to_bpd(elbo, img_shape):
         bpd - The negative log likelihood in bits per dimension for the given image.
     """
     dim_prod = torch.prod(torch.tensor(img_shape[1:]))
-    bpd = elbo * torch.log2(torch.exp(torch.ones(1))) / dim_prod
+    bpd = torch.mean(elbo) * torch.log2(torch.exp(torch.ones(1))).to(elbo.device) / dim_prod
     return bpd
 
 
@@ -88,7 +90,15 @@ def visualize_manifold(decoder, grid_size=20):
     # - You can use torchvision's function "make_grid" to combine the grid_size**2 images into a grid
     # - Remember to apply a sigmoid after the decoder
 
-    img_grid = None
-    raise NotImplementedError
+    r = torch.tensor([(0.5 + grid)/(grid_size+1) for grid in range(grid_size)])
+    grid_x, grid_y = torch.meshgrid(r, r)
+    
+    imgs = []
+    for point in zip(grid_x.flatten().tolist(), grid_y.flatten().tolist()):
+        z_t = torch.tensor(norm.ppf(point).reshape(1, -1))
+        img = torch.sigmoid(decoder(z_t.float())[0])
+        imgs.append(img)
+
+    img_grid = make_grid(imgs, nrow=grid_size)
 
     return img_grid

@@ -70,12 +70,22 @@ class VAE(nn.Module):
         """
 
         # Hint: implement the empty functions in utils.py
+        batch_size, _, _, _ = imgs.shape
 
         L_rec = None
         L_reg = None
         bpd = None
-        raise NotImplementedError
-        return L_rec, L_reg, bpd
+        mean, log_std = self.encoder(imgs)
+        z = sample_reparameterize(mean, torch.exp(log_std))
+        out = self.decoder(z)
+        
+        L_rec = F.binary_cross_entropy(torch.sigmoid(out), imgs, reduction="none")
+        L_rec = torch.sum(L_rec.reshape(batch_size, -1), dim=1)
+        L_reg = torch.sum(KLD(mean, log_std), dim=1)
+
+        bpd = elbo_to_bpd(L_rec+L_reg, imgs.shape)
+        
+        return torch.mean(L_rec), torch.mean(L_reg), bpd
 
     @torch.no_grad()
     def sample(self, batch_size):
@@ -89,9 +99,12 @@ class VAE(nn.Module):
                      between 0 and 1 from which we obtain "x_samples"
         """
 
-        x_mean = None
-        x_samples = None
-        raise NotImplementedError
+        z = torch.randn((batch_size, self.z_dim), device=self.device)
+        out = self.decoder(z)
+
+        x_mean = torch.sigmoid(out)
+        x_samples = (x_mean>0.5).float()
+
         return x_samples, x_mean
 
     @property
@@ -101,6 +114,9 @@ class VAE(nn.Module):
         """
         return self.decoder.device
 
+def show(img):
+    npimg = img.numpy()
+    plt.imshow(np.transpose(npimg, (1,2,0)), interpolation='nearest')
 
 def sample_and_save(model, epoch, summary_writer, batch_size=64):
     """
@@ -117,8 +133,10 @@ def sample_and_save(model, epoch, summary_writer, batch_size=64):
     # - You can access the logging directory path via summary_writer.log_dir
     # - Use the torchvision function "make_grid" to create a grid of multiple images
     # - Use the torchvision function "save_image" to save an image grid to disk
+    path = os.path.join(summary_writer.get_logdir(), f"sample_{epoch}.png")
+    imgs, means = model.sample(batch_size)
 
-    raise NotImplementedError
+    save_image(make_grid(imgs), path)
 
 
 @torch.no_grad()
@@ -133,12 +151,27 @@ def test_vae(model, data_loader):
         average_rec_loss - Average reconstruction loss
         average_reg_loss - Average regularization loss
     """
+    model.eval()
 
-    average_bpd = None
-    average_rec_loss = None
-    average_reg_loss = None
-    raise NotImplementedError
-    return average_bpd, average_rec_loss, average_reg_loss
+    average_bpd = 0
+    average_rec_loss = 0
+    average_reg_loss = 0
+
+    step = 0
+    for data in data_loader:
+        imgs, targets = data
+        imgs = imgs.to(model.device)
+        targets = targets.to(model.device)
+
+        rec_loss, reg_loss, bpd = model(imgs)
+        
+        step += 1
+        average_bpd += bpd.item()
+        average_rec_loss += rec_loss.item()
+        average_reg_loss += reg_loss.item()
+
+
+    return average_bpd / step, average_rec_loss / step, average_reg_loss / step
 
 
 def train_vae(model, train_loader, optimizer):
@@ -153,12 +186,31 @@ def train_vae(model, train_loader, optimizer):
         average_rec_loss - Average reconstruction loss
         average_reg_loss - Average regularization loss
     """
+    model.train()
 
-    average_bpd = None
-    average_rec_loss = None
-    average_reg_loss = None
-    raise NotImplementedError
-    return average_bpd, average_rec_loss, average_reg_loss
+    average_bpd = 0
+    average_rec_loss = 0
+    average_reg_loss = 0
+
+    step = 0
+    for data in train_loader:
+        imgs, targets = data
+        imgs = imgs.to(model.device)
+        targets = targets.to(model.device)
+
+        model.zero_grad()
+        rec_loss, reg_loss, bpd = model(imgs)
+
+        bpd.backward()
+        optimizer.step()
+        
+        step += 1
+        average_bpd += bpd.item()
+        average_rec_loss += rec_loss.item()
+        average_reg_loss += reg_loss.item()
+
+
+    return average_bpd / step, average_rec_loss / step, average_reg_loss / step
 
 
 def seed_everything(seed):
@@ -200,6 +252,7 @@ def main(args):
                 z_dim=args.z_dim,
                 lr=args.lr)
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    # device = "cpu"
     model = model.to(device)
 
     # Create optimizer
@@ -225,6 +278,12 @@ def main(args):
         val_iterator = (tqdm(val_loader, desc="Testing", leave=False)
                         if args.progress_bar else val_loader)
         epoch_val_bpd, val_rec_loss, val_reg_loss = test_vae(model, val_iterator)
+
+        print(f"Epoch {epoch}:")
+        print(f"\tBPD - train {epoch_train_bpd} - val {epoch_val_bpd}")
+        print(f"\tRec_l - train {train_rec_loss} - val {val_rec_loss}")
+        print(f"\tReg_l - train {train_reg_loss} - val {val_reg_loss}")
+        print(f"\tELBO - train {train_rec_loss+train_reg_loss} - val {val_rec_loss+val_reg_loss}")
 
         # Logging to TensorBoard
         summary_writer.add_scalars(
@@ -252,7 +311,7 @@ def main(args):
     # Test epoch
     test_loader = (tqdm(test_loader, desc="Testing", leave=False)
                    if args.progress_bar else test_loader)
-    _, _, test_bpd = test_vae(model, test_loader)
+    test_bpd, _, _ = test_vae(model, test_loader)
     print(f"Test BPD: {test_bpd}")
     summary_writer.add_scalars("BPD", {"test": test_bpd}, args.epochs - 1)
 
